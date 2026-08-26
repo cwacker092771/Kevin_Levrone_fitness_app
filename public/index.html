@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Levrone Protocol — Personal TODO Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <svg class="brand-badge" viewBox="0 0 100 100" role="img" aria-label="Barbell medal emblem">
+          <circle cx="50" cy="50" r="46" class="badge-ring-outer"></circle>
+          <circle cx="50" cy="50" r="38" class="badge-ring-inner"></circle>
+          <path d="M14 78 Q4 60 14 40" class="badge-ribbon"></path>
+          <path d="M86 78 Q96 60 86 40" class="badge-ribbon"></path>
+          <g class="badge-barbell">
+            <rect x="22" y="47" width="56" height="6" rx="2"></rect>
+            <rect x="15" y="38" width="9" height="24" rx="3"></rect>
+            <rect x="6" y="34" width="7" height="32" rx="3"></rect>
+            <rect x="76" y="38" width="9" height="24" rx="3"></rect>
+            <rect x="87" y="34" width="7" height="32" rx="3"></rect>
+          </g>
+          <path d="M32 66 A20 20 0 0 0 68 66" class="badge-star-arc"></path>
+        </svg>
+        <div class="brand-text">
+          <h1>THE LEVRONE PROTOCOL</h1>
+          <p class="tagline">Body composition · Nutrition · Supplementation — old-school bodybuilding principles, turned into your daily TODO list.</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel form-panel">
+      <h2>1. Tell it about you</h2>
+      <form id="planForm">
+
+        <fieldset>
+          <legend>Body Composition</legend>
+          <div class="grid">
+            <label>Sex
+              <select name="sex" required>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </label>
+            <label>Age
+              <input type="number" name="age" min="14" max="90" value="30" required>
+            </label>
+            <div class="field-group">
+              <span class="field-label">Height</span>
+              <div class="height-inputs">
+                <input type="number" name="heightFt" min="3" max="8" value="5" required aria-label="Height feet">
+                <span class="unit">ft</span>
+                <input type="number" name="heightIn" min="0" max="11" value="10" required aria-label="Height inches">
+                <span class="unit">in</span>
+              </div>
+            </div>
+            <label>Weight (lbs)
+              <input type="number" name="weight" min="80" max="500" value="185" required>
+            </label>
+            <label>Body Fat % (optional)
+              <input type="number" name="bodyfat" min="3" max="60" placeholder="e.g. 18">
+            </label>
+            <label>Activity Level
+              <select name="activity">
+                <option value="1.2">Sedentary (desk job, little exercise)</option>
+                <option value="1.375">Light (1-3 training days/wk)</option>
+                <option value="1.55" selected>Moderate (3-5 training days/wk)</option>
+                <option value="1.725">Very Active (6-7 training days/wk)</option>
+                <option value="1.9">Athlete (2x/day, physical job)</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Goal</legend>
+          <div class="grid">
+            <label>Primary Goal
+              <select name="goal" required>
+                <option value="cut">Cut — lose fat, keep muscle</option>
+                <option value="bulk">Lean Bulk — build size</option>
+                <option value="recomp" selected>Recomp — lose fat & gain muscle</option>
+                <option value="maintain">Maintain — stay the same</option>
+              </select>
+            </label>
+            <label>Training Experience
+              <select name="experience">
+                <option value="beginner">Beginner (&lt; 1 year)</option>
+                <option value="intermediate" selected>Intermediate (1-3 years)</option>
+                <option value="advanced">Advanced (3+ years)</option>
+              </select>
+            </label>
+            <label>Training Days Available / Week
+              <select name="days">
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Supplement Interests</legend>
+          <div class="checkbox-grid">
+            <label class="chk"><input type="checkbox" name="supp" value="protein" checked> Whey / Casein Protein</label>
+            <label class="chk"><input type="checkbox" name="supp" value="creatine" checked> Creatine Monohydrate</label>
+            <label class="chk"><input type="checkbox" name="supp" value="preworkout"> Pre-Workout</label>
+            <label class="chk"><input type="checkbox" name="supp" value="fatburner"> Fat Burner / Thermogenic</label>
+            <label class="chk"><input type="checkbox" name="supp" value="massgainer"> Mass Gainer</label>
+            <label class="chk"><input type="checkbox" name="supp" value="aminos"> BCAA / EAA</label>
+            <label class="chk"><input type="checkbox" name="supp" value="multi" checked> Multivitamin</label>
+            <label class="chk"><input type="checkbox" name="supp" value="fishoil" checked> Fish Oil (Omega-3)</label>
+            <label class="chk"><input type="checkbox" name="supp" value="vitamind"> Vitamin D3</label>
+            <label class="chk"><input type="checkbox" name="supp" value="joint"> Joint Support (Glucosamine/Collagen)</label>
+            <label class="chk"><input type="checkbox" name="supp" value="zma"> ZMA / Sleep & Recovery</label>
+          </div>
+          <label class="chk stim-toggle">
+            <input type="checkbox" name="stimulantsOk" checked>
+            Stimulants are okay (caffeine, etc. in pre-workouts and fat burners)
+          </label>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="generateBtn">Generate Plan For This Day</button>
+          <button type="button" id="resetBtn" class="btn-secondary">Reset Checklist</button>
+        </div>
+      </form>
+    </section>
+
+    <p class="hint" id="noPlanHint" hidden>No plan saved for this date yet — fill out the form above and click "Generate Plan For This Day" to create one.</p>
+
+    <section class="panel results-panel" id="resultsPanel" hidden>
+      <h2>2. Your Numbers <span class="plan-date-tag" id="statsDateTag"></span></h2>
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <h2>3. Your Levrone-Style TODO List</h2>
+      <p class="hint">Check items off as you go — your progress is saved to the database for this specific day.</p>
+      <div class="todo-groups" id="todoGroups"></div>
+    </section>
+
+    <section class="panel calendar-panel">
+      <h2>4. Pick a Day</h2>
+      <div class="calendar" id="calendar">
+        <div class="calendar-header">
+          <button type="button" class="cal-nav" id="calPrev" aria-label="Previous month">&#8249;</button>
+          <span class="cal-month-label" id="calMonthLabel"></span>
+          <button type="button" class="cal-nav" id="calNext" aria-label="Next month">&#8250;</button>
+        </div>
+        <div class="calendar-weekdays">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="calendar-footer">
+          <button type="button" class="btn-secondary" id="calToday">Today</button>
+          <span class="selected-date-label" id="selectedDateLabel"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel metrics-panel">
+      <h2>5. Body Metrics Log <span class="plan-date-tag" id="metricsDateTag"></span></h2>
+      <p class="hint">Uses the day picked in "Pick a Day" below — jump to a different day there to log or edit metrics for it.</p>
+      <form id="metricsForm" class="metrics-form">
+        <div class="grid">
+          <label>Weight (lbs)
+            <input type="number" name="weightLb" step="0.1" placeholder="e.g. 184.5">
+          </label>
+          <label>Body Fat (%)
+            <input type="number" name="bodyFatPct" step="0.1" placeholder="e.g. 17.5">
+          </label>
+          <label>Body Water (%)
+            <input type="number" name="bodyWaterPct" step="0.1" placeholder="e.g. 55.0">
+          </label>
+          <label>Muscle Mass (%)
+            <input type="number" name="musclePct" step="0.1" placeholder="e.g. 38.9">
+          </label>
+          <label>Skeletal Muscle (%)
+            <input type="number" name="skeletalMusclePct" step="0.1" placeholder="e.g. 42.3">
+          </label>
+          <label>Bone Mass (lbs)
+            <input type="number" name="boneMassLb" step="0.1" placeholder="e.g. 7.2">
+          </label>
+          <label>BMI
+            <input type="number" name="bmi" step="0.1" placeholder="e.g. 27.3">
+          </label>
+          <label>BMR (kcal)
+            <input type="number" name="bmr" step="1" placeholder="e.g. 1805">
+          </label>
+          <label>Visceral Fat
+            <input type="number" name="visceralFat" step="0.1" placeholder="e.g. 9">
+          </label>
+          <label>Metabolic Age (yrs)
+            <input type="number" name="metabolicAge" step="1" placeholder="e.g. 32">
+          </label>
+          <label>Protein (%)
+            <input type="number" name="proteinPct" step="0.1" placeholder="e.g. 17.8">
+          </label>
+          <label>Subcutaneous Fat (%)
+            <input type="number" name="subcutaneousFatPct" step="0.1" placeholder="e.g. 15.2">
+          </label>
+          <label>Fat-Free Body Weight (lbs)
+            <input type="number" name="fatFreeWeightLb" step="0.1" placeholder="e.g. 152.1">
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn-primary">Log Body Metrics</button>
+          <span class="metrics-saved-tag" id="metricsSavedTag" hidden>Saved ✓</span>
+        </div>
+      </form>
+
+      <div class="csv-import-row">
+        <button type="button" class="btn-secondary" id="csvImportBtn">Import CSV</button>
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" hidden>
+        <span class="csv-import-hint">Import history exported from the Eros Scale app (tracking → history → export).</span>
+      </div>
+      <p class="csv-import-result" id="csvImportResult" hidden></p>
+
+      <div class="charts-grid" id="chartsGrid"></div>
+    </section>
+
+    <section class="panel notes-panel">
+      <h2>6. Daily Notes <span class="plan-date-tag" id="notesDateTag"></span></h2>
+      <p class="hint">Uses the day picked in "Pick a Day" above — jot down how a training day felt, what you ate, or anything else worth remembering.</p>
+      <form id="notesForm" class="notes-form">
+        <textarea name="note" id="noteText" rows="5" placeholder="e.g. Felt strong on squats today, hit a new rep PR. Slept 6hrs, a bit low on energy by the evening lift."></textarea>
+        <div class="actions">
+          <button type="submit" class="btn-primary">Save Note</button>
+          <span class="metrics-saved-tag" id="noteSavedTag" hidden>Saved ✓</span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Inspired by Kevin Levrone's well-known old-school training and nutrition philosophy. This tool provides general fitness education, not medical advice — check with a doctor before starting any new diet, training, or supplement program.</p>
+    </div>
+  </footer>
+
+<script src="app.js"></script>
+</body>
+</html>
