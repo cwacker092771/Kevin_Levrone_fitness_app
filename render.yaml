@@ -18,7 +18,3 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
-      - key: BASIC_AUTH_USER
-        sync: false
-      - key: BASIC_AUTH_PASS
-        sync: false

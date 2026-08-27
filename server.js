@@ -1,7 +1,6 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const crypto = require("crypto");
 const pool = require("./db/pool");
 const plans = require("./db/plans");
 const metrics = require("./db/metrics");
@@ -12,36 +11,6 @@ const { BODY_METRIC_FIELDS } = require("./lib/bodyMetricFields");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-const { BASIC_AUTH_USER, BASIC_AUTH_PASS } = process.env;
-
-function timingSafeStringEqual(a, b) {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-if (BASIC_AUTH_USER && BASIC_AUTH_PASS) {
-  app.use((req, res, next) => {
-    const header = req.headers.authorization || "";
-    const [scheme, encoded] = header.split(" ");
-    if (scheme === "Basic" && encoded) {
-      const [user, pass] = Buffer.from(encoded, "base64").toString().split(":");
-      if (
-        user && pass &&
-        timingSafeStringEqual(user, BASIC_AUTH_USER) &&
-        timingSafeStringEqual(pass, BASIC_AUTH_PASS)
-      ) {
-        return next();
-      }
-    }
-    res.set("WWW-Authenticate", 'Basic realm="Levrone Protocol"');
-    res.status(401).send("Authentication required.");
-  });
-} else if (process.env.NODE_ENV === "production") {
-  console.warn("WARNING: BASIC_AUTH_USER/BASIC_AUTH_PASS not set — the app is publicly accessible with no login.");
-}
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
