@@ -26,9 +26,9 @@ It deploys **into a VPC you already have** — it does not create a VPC.
    Note the clone URL, e.g. `https://github.com/<you>/<repo>.git`.
 2. **A VPC with two public subnets** in different AZs (public = has a route to an
    internet gateway). The default VPC works. Note the VPC id and two subnet ids.
-3. **An EC2 key pair** in the target region (`aws ec2 create-key-pair …`), even if
-   you plan to use Session Manager.
-4. AWS CLI configured with credentials that can create EC2/RDS/IAM resources.
+3. AWS CLI configured with credentials that can create EC2/RDS/IAM resources.
+4. *(Optional)* an **EC2 key pair** in the target region if you want SSH. Leave
+   `KeyName` unset to rely on SSM Session Manager only (no port 22 opened).
 5. *(Optional)* a **domain name** you can point at the instance. Without one the
    app is served over plain HTTP (see "Cookies & HTTPS" below).
 
@@ -44,8 +44,6 @@ aws cloudformation deploy \
   --parameter-overrides \
       VpcId=vpc-xxxxxxxx \
       SubnetIds=subnet-aaaa,subnet-bbbb \
-      KeyName=my-keypair \
-      SSHLocation=203.0.113.4/32 \
       RepoUrl=https://github.com/<you>/<repo>.git \
       RepoBranch=main \
       DBPassword='choose-a-strong-one' \
@@ -53,6 +51,8 @@ aws cloudformation deploy \
 ```
 
 - Omit `Domain=…` to skip HTTPS and serve on port 80.
+- Add `KeyName=my-keypair SSHLocation=203.0.113.4/32` to enable SSH; otherwise
+  use `aws ssm start-session` (the `SSMSessionCommand` stack output).
 - `SubnetIds` is a single comma-separated value (no spaces).
 - RDS takes ~5–10 minutes; the stack finishes when the instance is up, the app
   may still be installing for a minute after that.
