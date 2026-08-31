@@ -1,0 +1,294 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  The Levrone Protocol - single EC2 instance (Node app behind Caddy) plus an
+  RDS PostgreSQL database, deployed into an existing VPC.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to deploy into.
+
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >
+      Two or more PUBLIC subnets (route to an internet gateway) in different
+      Availability Zones. The instance launches in the first; all are used for
+      the RDS subnet group.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 key pair for SSH. (Session Manager also works without SSH.)
+
+  SSHLocation:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: CIDR allowed to reach SSH (port 22). Narrow this to your IP.
+    AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    Description: EC2 instance type (must be an x86_64 type for the default AMI).
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+
+  DBName:
+    Type: String
+    Default: levrone_fitness
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9_]*$
+
+  DBUsername:
+    Type: String
+    Default: levrone
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9_]{2,30}$
+    Description: RDS master username (cannot be a reserved word like "admin").
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    MaxLength: 41
+    AllowedPattern: ^[a-zA-Z0-9!#%^&*()_+=\-]{12,41}$
+    Description: RDS master password. 12-41 chars, no /, @, ", or spaces.
+
+  RepoUrl:
+    Type: String
+    Description: Public git URL of this repository (https, no auth prompt).
+
+  RepoBranch:
+    Type: String
+    Default: main
+
+  Domain:
+    Type: String
+    Default: ""
+    Description: >
+      Optional. A domain name you will point (A record) at the instance's
+      public IP. If set, Caddy obtains a Let's Encrypt certificate and the app
+      runs with Secure cookies. If left blank, the app is served over plain
+      HTTP on port 80 (COOKIE_SECURE=false) - testing only.
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Leave as-is (resolves to the current Amazon Linux 2023 x86_64 AMI).
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref Domain, ""]]
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName} web instance"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: HTTP }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTPS }
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref SSHLocation, Description: SSH }
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-web" }
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName} database"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref WebSecurityGroup
+          Description: PostgreSQL from the web instance only
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-db" }
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "${AWS::StackName} subnet group"
+      SubnetIds: !Ref SubnetIds
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      # EngineVersion left unset - RDS uses the current default major version.
+      # Pin it here (e.g. "17.2") if you need a specific one.
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups: [!Ref DBSecurityGroup]
+      MultiAZ: false
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-db" }
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  WebInstance:
+    Type: AWS::EC2::Instance
+    # (Depends on Database implicitly via !GetAtt in UserData.)
+    Metadata:
+      Comment: >
+        First-boot log lives at /var/log/cloud-init-output.log on the instance.
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          SubnetId: !Select [0, !Ref SubnetIds]
+          GroupSet: [!Ref WebSecurityGroup]
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-web" }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+
+          dnf update -y
+          dnf install -y nodejs20 git
+
+          # --- application code -------------------------------------------------
+          id levrone &>/dev/null || useradd --system --home-dir /opt/levrone --shell /sbin/nologin levrone
+          mkdir -p /opt/levrone
+          git clone --branch "${RepoBranch}" "${RepoUrl}" /opt/levrone/app
+          chown -R levrone:levrone /opt/levrone
+          cd /opt/levrone/app
+          sudo -u levrone npm ci --omit=dev
+
+          # --- environment ----------------------------------------------------
+          cat > /opt/levrone/app.env <<ENVEOF
+          NODE_ENV=production
+          PORT=3000
+          DATABASE_URL=postgres://${DBUsername}:${DBPassword}@${Database.Endpoint.Address}:5432/${DBName}
+          ENVEOF
+          DOMAIN="${Domain}"
+          if [ -z "$DOMAIN" ]; then echo "COOKIE_SECURE=false" >> /opt/levrone/app.env; fi
+          chmod 600 /opt/levrone/app.env
+          chown levrone:levrone /opt/levrone/app.env
+
+          # --- node service -------------------------------------------------
+          cat > /etc/systemd/system/levrone.service <<'UNITEOF'
+          [Unit]
+          Description=The Levrone Protocol
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=levrone
+          WorkingDirectory=/opt/levrone/app
+          EnvironmentFile=/opt/levrone/app.env
+          ExecStart=/usr/bin/node server.js
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+          UNITEOF
+          systemctl daemon-reload
+          systemctl enable --now levrone
+
+          # --- Caddy reverse proxy (auto HTTPS when a domain is set) --------
+          groupadd --system caddy || true
+          useradd --system --gid caddy --home-dir /var/lib/caddy --shell /sbin/nologin caddy || true
+          mkdir -p /var/lib/caddy /etc/caddy
+          curl -fsSL -o /usr/bin/caddy "https://caddyserver.com/api/download?os=linux&arch=amd64"
+          chmod +x /usr/bin/caddy
+          chown -R caddy:caddy /var/lib/caddy
+
+          if [ -n "$DOMAIN" ]; then
+            printf '%s {\n    reverse_proxy 127.0.0.1:3000\n}\n' "$DOMAIN" > /etc/caddy/Caddyfile
+          else
+            printf ':80 {\n    reverse_proxy 127.0.0.1:3000\n}\n' > /etc/caddy/Caddyfile
+          fi
+          chown caddy:caddy /etc/caddy/Caddyfile
+
+          cat > /etc/systemd/system/caddy.service <<'CADDYEOF'
+          [Unit]
+          Description=Caddy
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=caddy
+          Group=caddy
+          ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+          ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+          Restart=on-failure
+          RestartSec=3
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          LimitNOFILE=1048576
+
+          [Install]
+          WantedBy=multi-user.target
+          CADDYEOF
+          systemctl daemon-reload
+          systemctl enable --now caddy
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  URL:
+    Description: Application URL.
+    Value: !If
+      - HasDomain
+      - !Sub "https://${Domain}"
+      - !Sub "http://${WebInstance.PublicDnsName}"
+
+  InstancePublicIP:
+    Description: Point your domain's A record here.
+    Value: !GetAtt WebInstance.PublicIp
+
+  InstancePublicDNS:
+    Value: !GetAtt WebInstance.PublicDnsName
+
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+
+  SSMSessionCommand:
+    Description: Open a shell on the instance without SSH.
+    Value: !Sub "aws ssm start-session --target ${WebInstance}"

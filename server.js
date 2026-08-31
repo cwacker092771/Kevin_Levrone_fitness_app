@@ -5,20 +5,166 @@ const pool = require("./db/pool");
 const plans = require("./db/plans");
 const metrics = require("./db/metrics");
 const notes = require("./db/notes");
+const auth = require("./db/auth");
+const licenses = require("./db/licenses");
+const { LICENSE_TIERS, ADDITIONAL_SERVICES } = require("./lib/licenseTiers");
+const { attachUser, requireAuth, setSessionCookie, clearSessionCookie } = require("./lib/session");
 const { importMetricsCsv } = require("./lib/importMetricsCsv");
 const { BODY_METRIC_FIELDS } = require("./lib/bodyMetricFields");
+const { checkPasswordStrength } = require("./lib/passwordPolicy");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Usernames are the account's email address. Keep the check permissive but
+// require a single "@" with a dotted domain and no spaces.
+const USERNAME_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// In production the app runs behind a reverse proxy (Caddy / nginx / ELB) that
+// terminates TLS. Trust the first proxy hop so req.ip / req.protocol reflect
+// the real client.
+if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
 
 app.use(express.json({ limit: "5mb" }));
+app.use(attachUser);
 app.use(express.static(path.join(__dirname, "public")));
+
+// Unauthenticated liveness/readiness probe for load balancers and monitoring.
+// Reports 200 only when the database is reachable.
+app.get("/healthz", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ status: "ok" });
+  } catch (err) {
+    res.status(503).json({ status: "db_unavailable" });
+  }
+});
 
 function isValidDate(str) {
   return DATE_RE.test(str) && !Number.isNaN(Date.parse(str));
 }
 
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+function publicUser(user) {
+  return { id: user.id, username: user.username };
+}
+
+app.post("/api/auth/register", async (req, res) => {
+  const { username, password } = req.body || {};
+  if (typeof username !== "string" || !USERNAME_RE.test(username.trim())) {
+    return res.status(400).json({ error: "invalid_username" });
+  }
+  const pwProblem = checkPasswordStrength(password, username.trim());
+  if (pwProblem) {
+    return res.status(400).json({ error: "weak_password", message: pwProblem });
+  }
+  try {
+    const user = await auth.createUser(username.trim(), password);
+    const { token } = await auth.createSession(user.id);
+    setSessionCookie(res, token);
+    // A brand-new account has no license installed — the client shows the
+    // plan picker whenever `license` is null.
+    res.status(201).json({ user: publicUser(user), license: null });
+  } catch (err) {
+    if (err.code === "username_taken") {
+      return res.status(409).json({ error: "username_taken" });
+    }
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body || {};
+  if (typeof username !== "string" || typeof password !== "string") {
+    return res.status(400).json({ error: "missing_credentials" });
+  }
+  try {
+    const user = await auth.verifyUser(username, password);
+    if (!user) return res.status(401).json({ error: "invalid_credentials" });
+    const { token } = await auth.createSession(user.id);
+    setSessionCookie(res, token);
+    res.json({ user: publicUser(user), license: await licenses.getLicense(user.id) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    await auth.deleteSession(req.sessionToken);
+  } catch (err) {
+    console.error(err);
+  }
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "not_authenticated" });
+  try {
+    res.json({ user: publicUser(req.user), license: await licenses.getLicense(req.userId) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Licensing
+// ---------------------------------------------------------------------------
+// Public: the tiers and add-on services shown in the registration-time picker.
+app.get("/api/license/tiers", (req, res) => {
+  res.json({ tiers: LICENSE_TIERS, services: ADDITIONAL_SERVICES });
+});
+
+// Everything below this line requires a valid session.
+app.use("/api", requireAuth);
+
+// Any signed-in user can read or install their license. This sits above the
+// requireLicense gate so an unlicensed account can still pick a tier.
+app.get("/api/license", async (req, res) => {
+  try {
+    res.json({ license: await licenses.getLicense(req.userId) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+app.post("/api/license", async (req, res) => {
+  const { tier, addon } = req.body || {};
+  try {
+    const license = await licenses.setLicense(req.userId, tier, addon);
+    res.json({ license });
+  } catch (err) {
+    if (err.code === "invalid_tier" || err.code === "invalid_addon") {
+      return res.status(400).json({ error: err.code });
+    }
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+// Everything below this line also requires an installed license.
+async function requireLicense(req, res, next) {
+  try {
+    const license = await licenses.getLicense(req.userId);
+    if (!license) return res.status(402).json({ error: "license_required" });
+    req.license = license;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+app.use("/api", requireLicense);
+
+// ---------------------------------------------------------------------------
+// Plans
+// ---------------------------------------------------------------------------
 app.get("/api/plans/dates", async (req, res) => {
   const year = parseInt(req.query.year, 10);
   const month = parseInt(req.query.month, 10);
@@ -26,7 +172,7 @@ app.get("/api/plans/dates", async (req, res) => {
     return res.status(400).json({ error: "invalid_year_or_month" });
   }
   try {
-    const dates = await plans.getPlanDatesInMonth(year, month);
+    const dates = await plans.getPlanDatesInMonth(req.userId, year, month);
     res.json({ dates });
   } catch (err) {
     console.error(err);
@@ -38,7 +184,7 @@ app.get("/api/plans/:date", async (req, res) => {
   const { date } = req.params;
   if (!isValidDate(date)) return res.status(400).json({ error: "invalid_date" });
   try {
-    const plan = await plans.getPlan(date);
+    const plan = await plans.getPlan(req.userId, date);
     if (!plan) return res.status(404).json({ error: "not_found" });
     res.json(plan);
   } catch (err) {
@@ -55,7 +201,7 @@ app.post("/api/plans/:date", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
   try {
-    const plan = await plans.upsertPlan(date, inputs, stats, groups);
+    const plan = await plans.upsertPlan(req.userId, date, inputs, stats, groups);
     res.json(plan);
   } catch (err) {
     console.error(err);
@@ -70,7 +216,7 @@ app.patch("/api/plans/:date/items/:itemId", async (req, res) => {
     return res.status(400).json({ error: "missing_checked" });
   }
   try {
-    const plan = await plans.setItemChecked(date, itemId, req.body.checked);
+    const plan = await plans.setItemChecked(req.userId, date, itemId, req.body.checked);
     if (!plan) return res.status(404).json({ error: "not_found" });
     res.json(plan);
   } catch (err) {
@@ -83,7 +229,7 @@ app.post("/api/plans/:date/reset-checked", async (req, res) => {
   const { date } = req.params;
   if (!isValidDate(date)) return res.status(400).json({ error: "invalid_date" });
   try {
-    const plan = await plans.resetChecked(date);
+    const plan = await plans.resetChecked(req.userId, date);
     if (!plan) return res.status(404).json({ error: "not_found" });
     res.json(plan);
   } catch (err) {
@@ -92,9 +238,12 @@ app.post("/api/plans/:date/reset-checked", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Body metrics
+// ---------------------------------------------------------------------------
 app.get("/api/metrics", async (req, res) => {
   try {
-    const list = await metrics.listMetrics();
+    const list = await metrics.listMetrics(req.userId);
     res.json({ metrics: list });
   } catch (err) {
     console.error(err);
@@ -106,7 +255,7 @@ app.get("/api/metrics/:date", async (req, res) => {
   const { date } = req.params;
   if (!isValidDate(date)) return res.status(400).json({ error: "invalid_date" });
   try {
-    const metric = await metrics.getMetric(date);
+    const metric = await metrics.getMetric(req.userId, date);
     if (!metric) return res.status(404).json({ error: "not_found" });
     res.json(metric);
   } catch (err) {
@@ -128,7 +277,7 @@ app.post("/api/metrics/import-csv", async (req, res) => {
 
   try {
     for (const entry of result.entries) {
-      await metrics.upsertMetric(entry.date, entry);
+      await metrics.upsertMetric(req.userId, entry.date, entry);
     }
     res.json({
       matchedColumns: result.matchedColumns,
@@ -150,7 +299,7 @@ app.post("/api/metrics/:date", async (req, res) => {
     return res.status(400).json({ error: "missing_fields" });
   }
   try {
-    const metric = await metrics.upsertMetric(date, data);
+    const metric = await metrics.upsertMetric(req.userId, date, data);
     res.json(metric);
   } catch (err) {
     console.error(err);
@@ -158,6 +307,9 @@ app.post("/api/metrics/:date", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Notes
+// ---------------------------------------------------------------------------
 app.get("/api/notes/dates", async (req, res) => {
   const year = parseInt(req.query.year, 10);
   const month = parseInt(req.query.month, 10);
@@ -165,7 +317,7 @@ app.get("/api/notes/dates", async (req, res) => {
     return res.status(400).json({ error: "invalid_year_or_month" });
   }
   try {
-    const dates = await notes.getNoteDatesInMonth(year, month);
+    const dates = await notes.getNoteDatesInMonth(req.userId, year, month);
     res.json({ dates });
   } catch (err) {
     console.error(err);
@@ -177,7 +329,7 @@ app.get("/api/notes/:date", async (req, res) => {
   const { date } = req.params;
   if (!isValidDate(date)) return res.status(400).json({ error: "invalid_date" });
   try {
-    const note = await notes.getNote(date);
+    const note = await notes.getNote(req.userId, date);
     res.json(note || { date, note: "", updatedAt: null });
   } catch (err) {
     console.error(err);
@@ -192,7 +344,7 @@ app.post("/api/notes/:date", async (req, res) => {
     return res.status(400).json({ error: "missing_note" });
   }
   try {
-    const note = await notes.upsertNote(date, req.body.note);
+    const note = await notes.upsertNote(req.userId, date, req.body.note);
     res.json(note);
   } catch (err) {
     console.error(err);
@@ -203,6 +355,7 @@ app.post("/api/notes/:date", async (req, res) => {
 async function start() {
   const schemaSql = fs.readFileSync(path.join(__dirname, "db", "schema.sql"), "utf8");
   await pool.query(schemaSql);
+  await auth.deleteExpiredSessions().catch((err) => console.error("session cleanup failed:", err));
   app.listen(PORT, () => {
     console.log(`Levrone Protocol server running at http://localhost:${PORT}`);
   });

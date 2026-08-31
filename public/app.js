@@ -35,7 +35,8 @@
     { key: "bodyFatPct", label: "Body Fat", unit: "%", color: "var(--red)" },
     { key: "fatFreeWeightLb", label: "Fat-Free Body Weight", unit: " lbs", color: "#45b8ac" },
     { key: "bodyWaterPct", label: "Body Water", unit: "%", color: "#4a90d9" },
-    { key: "musclePct", label: "Muscle Mass", unit: "%", color: "#5cb85c" },
+    { key: "musclePct", label: "Muscle Mass (%)", unit: "%", color: "#5cb85c" },
+    { key: "muscleMassLb", label: "Muscle Mass (lbs)", unit: " lbs", color: "#3fa34d" },
     { key: "skeletalMusclePct", label: "Skeletal Muscle", unit: "%", color: "#a3b93c" },
     { key: "boneMassLb", label: "Bone Mass", unit: " lbs", color: "#e08a3c" },
     { key: "bmi", label: "BMI", unit: "", color: "#9b7fd4" },
@@ -43,7 +44,12 @@
     { key: "visceralFat", label: "Visceral Fat", unit: "", color: "#7a93b0" },
     { key: "metabolicAge", label: "Metabolic Age", unit: " yrs", color: "#b08d57" },
     { key: "proteinPct", label: "Protein", unit: "%", color: "#8bc34a" },
-    { key: "subcutaneousFatPct", label: "Subcutaneous Fat", unit: "%", color: "#e08080" }
+    { key: "subcutaneousFatPct", label: "Subcutaneous Fat", unit: "%", color: "#e08080" },
+    { key: "heartRateBpm", label: "Heart Rate", unit: " bpm", color: "#e0556b" },
+    { key: "bodyFatMassLb", label: "Body Fat Mass", unit: " lbs", color: "#c85a6d" },
+    { key: "skeletalMuscleMassLb", label: "Skeletal Muscle Mass", unit: " lbs", color: "#8a9a2b" },
+    { key: "bodyWaterMassLb", label: "Body Water Mass", unit: " lbs", color: "#3f7fc0" },
+    { key: "phaseAngleDeg", label: "Phase Angle", unit: "°", color: "#5cbdb0" }
   ];
 
   function pad2(n) { return String(n).padStart(2, "0"); }
@@ -336,6 +342,14 @@
       body: opts.body ? JSON.stringify(opts.body) : undefined
     });
     if (res.status === 404) return null;
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("not_authenticated");
+    }
+    if (res.status === 402) {
+      handleLicenseRequired();
+      throw new Error("license_required");
+    }
     if (!res.ok) {
       let message = `Request failed: ${res.status}`;
       try {
@@ -771,13 +785,297 @@
     }
   });
 
-  metricsDateTag.textContent = formatDateLong(calState.selectedDate);
-  loadMetricForDate(calState.selectedDate);
-  loadAllMetricsAndRenderCharts();
+  function loadInitialData() {
+    metricsDateTag.textContent = formatDateLong(calState.selectedDate);
+    loadMetricForDate(calState.selectedDate);
+    loadAllMetricsAndRenderCharts();
 
-  notesDateTag.textContent = formatDateLong(calState.selectedDate);
-  loadNoteForDate(calState.selectedDate);
+    notesDateTag.textContent = formatDateLong(calState.selectedDate);
+    loadNoteForDate(calState.selectedDate);
 
-  refreshMonthDots();
-  loadPlanForDate(calState.selectedDate);
+    refreshMonthDots();
+    loadPlanForDate(calState.selectedDate);
+  }
+
+  // -------------------------------------------------------------------------
+  // Authentication
+  // -------------------------------------------------------------------------
+  const authGate = document.getElementById("authGate");
+  const authForm = document.getElementById("authForm");
+  const authTitle = document.getElementById("authTitle");
+  const authSub = document.getElementById("authSub");
+  const authError = document.getElementById("authError");
+  const authHint = document.getElementById("authHint");
+  const authSubmit = document.getElementById("authSubmit");
+  const authSwitchText = document.getElementById("authSwitchText");
+  const authSwitchBtn = document.getElementById("authSwitchBtn");
+  const appMain = document.getElementById("appMain");
+  const userBar = document.getElementById("userBar");
+  const userName = document.getElementById("userName");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  const licenseGate = document.getElementById("licenseGate");
+  const licenseSub = document.getElementById("licenseSub");
+  const tierGrid = document.getElementById("tierGrid");
+  const addonSection = document.getElementById("addonSection");
+  const addonList = document.getElementById("addonList");
+  const licenseError = document.getElementById("licenseError");
+  const licenseUser = document.getElementById("licenseUser");
+  const licenseLogout = document.getElementById("licenseLogout");
+
+  let authMode = "login"; // or "register"
+  let appDataLoaded = false;
+  let currentUser = null;
+  let tiersLoaded = false;
+  let selectedAddon = null;
+
+  const AUTH_MESSAGES = {
+    invalid_username: "Enter a valid email address.",
+    weak_password: "Pick a stronger password — see the requirements above.",
+    username_taken: "An account with that email already exists.",
+    invalid_credentials: "Incorrect email or password.",
+    missing_credentials: "Enter an email and password.",
+    not_authenticated: "Your session expired — please log in again.",
+    invalid_tier: "That plan isn't available — pick one of the options above.",
+    invalid_addon: "That additional service isn't available — pick another option."
+  };
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    authError.hidden = true;
+    const registering = mode === "register";
+    authTitle.textContent = registering ? "Create account" : "Log in";
+    authSub.textContent = registering
+      ? "Sign up with your email and a password to start your own Levrone Protocol log."
+      : "Log in to your Levrone Protocol account.";
+    authSubmit.textContent = registering ? "Create account" : "Log in";
+    authSwitchText.textContent = registering ? "Already have an account?" : "Need an account?";
+    authSwitchBtn.textContent = registering ? "Log in" : "Register";
+    authForm.password.autocomplete = registering ? "new-password" : "current-password";
+    authHint.hidden = !registering;
+  }
+
+  function showAuthGate() {
+    userBar.hidden = true;
+    appMain.hidden = true;
+    licenseGate.hidden = true;
+    authGate.hidden = false;
+    authForm.username.focus();
+  }
+
+  function showApp(user) {
+    currentUser = user;
+    authGate.hidden = true;
+    licenseGate.hidden = true;
+    appMain.hidden = false;
+    userBar.hidden = false;
+    userName.textContent = user.username;
+    if (!appDataLoaded) {
+      appDataLoaded = true;
+      loadInitialData();
+    }
+  }
+
+  // Routes to the app when the account is licensed, or to the plan picker when
+  // it isn't (a fresh registration, or a login on an unlicensed account).
+  function routeAfterAuth(user, license) {
+    if (license && license.tier) {
+      showApp(user);
+    } else {
+      showLicenseGate(user);
+    }
+  }
+
+  const TIER_MESSAGE = "Your account isn't licensed yet. Pick a plan to unlock The Levrone Protocol.";
+
+  async function showLicenseGate(user) {
+    currentUser = user;
+    appDataLoaded = false;
+    authGate.hidden = true;
+    appMain.hidden = true;
+    userBar.hidden = true;
+    licenseError.hidden = true;
+    licenseSub.textContent = TIER_MESSAGE;
+    licenseUser.textContent = user ? user.username : "";
+    licenseGate.hidden = false;
+    await renderTiers();
+  }
+
+  async function renderTiers() {
+    if (tiersLoaded) return;
+    try {
+      const res = await fetch("/api/license/tiers");
+      const data = await res.json();
+      tierGrid.innerHTML = "";
+      (data.tiers || []).forEach((tier) => {
+        const card = document.createElement("div");
+        card.className = `tier-card tier-${tier.id}` + (tier.badge ? " tier-featured" : "");
+        const features = (tier.features || [])
+          .map((f) => `<li>${f}</li>`)
+          .join("");
+        const badge = tier.badge ? `<div class="tier-badge">${tier.badge}</div>` : "";
+        card.innerHTML = `
+          <div class="tier-name"><span class="tier-name-text">${tier.name}</span>${badge}</div>
+          <div class="tier-price"><span class="tier-amount">${tier.price}</span><span class="tier-period">per ${tier.period}</span></div>
+          <p class="tier-blurb">${tier.blurb || ""}</p>
+          <ul class="tier-features">${features}</ul>
+          <button type="button" class="btn-primary tier-select" data-tier="${tier.id}">Choose ${tier.name}</button>
+        `;
+        card.querySelector(".tier-select").addEventListener("click", () => selectTier(tier.id));
+        tierGrid.appendChild(card);
+      });
+      renderAddons(data.services || []);
+      tiersLoaded = true;
+    } catch (err) {
+      console.error("Failed to load plans:", err);
+      licenseError.textContent = "Could not load the plans. Refresh and try again.";
+      licenseError.hidden = false;
+    }
+  }
+
+  // Renders the optional "Additional Services" list as a single-select group.
+  // Clicking the selected option again clears it.
+  function renderAddons(services) {
+    addonList.innerHTML = "";
+    if (services.length === 0) {
+      addonSection.hidden = true;
+      return;
+    }
+    const metalClasses = ["tier-bronze", "tier-silver", "tier-gold"];
+    services.forEach((svc, i) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      const metalClass = svc.metal ? `tier-${svc.metal}` : metalClasses[i % metalClasses.length];
+      row.className = `addon-option ${metalClass}`;
+      row.dataset.addon = svc.id;
+      row.setAttribute("aria-pressed", "false");
+      const price = svc.priceLabel || (svc.price && svc.period ? `${svc.price} / ${svc.period}` : "");
+      const priceEl = price ? `<span class="addon-price">${price}</span>` : "";
+      row.innerHTML = `${priceEl}<span class="addon-row"><span class="addon-check" aria-hidden="true"></span><span class="addon-label">${svc.label}</span></span>`;
+      row.addEventListener("click", () => {
+        selectedAddon = selectedAddon === svc.id ? null : svc.id;
+        addonList.querySelectorAll(".addon-option").forEach((el) => {
+          const on = el.dataset.addon === selectedAddon;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-pressed", String(on));
+        });
+      });
+      addonList.appendChild(row);
+    });
+    addonSection.hidden = false;
+  }
+
+  async function selectTier(tierId) {
+    licenseError.hidden = true;
+    const buttons = tierGrid.querySelectorAll(".tier-select");
+    buttons.forEach((b) => { b.disabled = true; });
+    try {
+      const res = await fetch("/api/license", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: tierId, addon: selectedAddon })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        licenseError.textContent = AUTH_MESSAGES[data.error] || "Could not activate that plan. Try again.";
+        licenseError.hidden = false;
+        return;
+      }
+      if (currentUser) showApp(currentUser);
+    } catch (err) {
+      console.error("Failed to select plan:", err);
+      licenseError.textContent = "Could not reach the server. Try again.";
+      licenseError.hidden = false;
+    } finally {
+      buttons.forEach((b) => { b.disabled = false; });
+    }
+  }
+
+  function handleLicenseRequired() {
+    if (!licenseGate.hidden) return;
+    showLicenseGate(currentUser);
+  }
+
+  licenseLogout.addEventListener("click", () => logout());
+
+  function handleUnauthorized() {
+    if (!authGate.hidden) return;
+    appDataLoaded = false;
+    currentUser = null;
+    authForm.reset();
+    setAuthMode("login");
+    authError.textContent = AUTH_MESSAGES.not_authenticated;
+    authError.hidden = false;
+    showAuthGate();
+  }
+
+  authSwitchBtn.addEventListener("click", () => {
+    setAuthMode(authMode === "login" ? "register" : "login");
+    authForm.username.focus();
+  });
+
+  authForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authError.hidden = true;
+    const username = authForm.username.value.trim();
+    const password = authForm.password.value;
+    if (!username || !password) return;
+
+    authSubmit.disabled = true;
+    const endpoint = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        authError.textContent = data.message || AUTH_MESSAGES[data.error] || "Something went wrong. Try again.";
+        authError.hidden = false;
+        return;
+      }
+      authForm.reset();
+      setAuthMode("login");
+      routeAfterAuth(data.user, data.license);
+    } catch (err) {
+      console.error("Auth request failed:", err);
+      authError.textContent = "Could not reach the server. Try again.";
+      authError.hidden = false;
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+    appDataLoaded = false;
+    currentUser = null;
+    authForm.reset();
+    setAuthMode("login");
+    showAuthGate();
+  }
+
+  logoutBtn.addEventListener("click", logout);
+
+  async function bootstrap() {
+    setAuthMode("login");
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        routeAfterAuth(data.user, data.license);
+        return;
+      }
+    } catch (err) {
+      console.error("Session check failed:", err);
+    }
+    showAuthGate();
+  }
+
+  bootstrap();
 })();

@@ -11,35 +11,37 @@ function serializeRow(row) {
   return result;
 }
 
-async function upsertMetric(date, data) {
+async function upsertMetric(userId, date, data) {
   const columns = BODY_METRIC_FIELDS.map((f) => f.column);
   const values = BODY_METRIC_FIELDS.map((f) => (data[f.key] == null ? null : data[f.key]));
 
-  const placeholders = values.map((_, i) => `$${i + 2}`);
-  const updateAssignments = columns.map((col, i) => `${col} = $${i + 2}`).join(", ");
+  // $1 = user_id, $2 = date, $3.. = metric values
+  const placeholders = values.map((_, i) => `$${i + 3}`);
+  const updateAssignments = columns.map((col, i) => `${col} = $${i + 3}`).join(", ");
 
   const { rows } = await pool.query(
-    `INSERT INTO body_metrics (metric_date, ${columns.join(", ")}, updated_at)
-     VALUES ($1, ${placeholders.join(", ")}, now())
-     ON CONFLICT (metric_date)
+    `INSERT INTO body_metrics (user_id, metric_date, ${columns.join(", ")}, updated_at)
+     VALUES ($1, $2, ${placeholders.join(", ")}, now())
+     ON CONFLICT (user_id, metric_date)
      DO UPDATE SET ${updateAssignments}, updated_at = now()
      RETURNING *`,
-    [date, ...values]
+    [userId, date, ...values]
   );
   return serializeRow(rows[0]);
 }
 
-async function getMetric(date) {
+async function getMetric(userId, date) {
   const { rows } = await pool.query(
-    "SELECT * FROM body_metrics WHERE metric_date = $1",
-    [date]
+    "SELECT * FROM body_metrics WHERE user_id = $1 AND metric_date = $2",
+    [userId, date]
   );
   return serializeRow(rows[0]);
 }
 
-async function listMetrics() {
+async function listMetrics(userId) {
   const { rows } = await pool.query(
-    "SELECT * FROM body_metrics ORDER BY metric_date ASC"
+    "SELECT * FROM body_metrics WHERE user_id = $1 ORDER BY metric_date ASC",
+    [userId]
   );
   return rows.map(serializeRow);
 }

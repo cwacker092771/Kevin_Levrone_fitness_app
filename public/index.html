@@ -29,13 +29,63 @@
         </svg>
         <div class="brand-text">
           <h1>THE LEVRONE PROTOCOL</h1>
-          <p class="tagline">Body composition · Nutrition · Supplementation — old-school bodybuilding principles, turned into your daily TODO list.</p>
+          <p class="tagline">Body composition · Nutrition · Supplementation<br><nobr>Old-school bodybuilding principles based on Kevin Levrone's personal recommendations, turned into your daily TODO list.</nobr></p>
         </div>
+      </div>
+      <div class="user-bar" id="userBar" hidden>
+        <span class="user-name" id="userName"></span>
+        <button type="button" class="btn-secondary" id="logoutBtn">Log out</button>
       </div>
     </div>
   </header>
 
-  <main class="wrap">
+  <div class="auth-gate" id="authGate" hidden>
+    <div class="auth-card">
+      <h2 id="authTitle">Log in</h2>
+      <p class="auth-sub" id="authSub">Log in to your Levrone Protocol account.</p>
+      <form id="authForm">
+        <label>Email
+          <input type="email" name="username" autocomplete="username" autocapitalize="none"
+                 spellcheck="false" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="auth-hint" id="authHint" hidden>
+          At least 12 characters, mixing upper- and lower-case letters, digits and
+          symbols. No common words, sequences, or your email.
+        </p>
+        <p class="auth-error" id="authError" hidden></p>
+        <button type="submit" class="btn-primary" id="authSubmit">Log in</button>
+      </form>
+      <p class="auth-switch">
+        <span id="authSwitchText">Need an account?</span>
+        <button type="button" class="linklike" id="authSwitchBtn">Register</button>
+      </p>
+    </div>
+  </div>
+
+  <div class="license-gate" id="licenseGate" hidden>
+    <div class="license-card">
+      <h2>Choose Your Plan</h2>
+      <p class="license-sub" id="licenseSub">Your account isn't licensed yet. Pick a plan to unlock The Levrone Protocol.</p>
+      <div class="tier-grid" id="tierGrid"></div>
+
+      <section class="addons" id="addonSection" hidden>
+        <h3 class="addons-title">Additional Services</h3>
+        <p class="addons-sub">Optional — add one-on-one coaching with Kevin to any plan.</p>
+        <div class="addon-list" id="addonList"></div>
+      </section>
+
+      <p class="auth-error" id="licenseError" hidden></p>
+      <p class="license-foot">
+        Signed in as <span class="license-user" id="licenseUser"></span>
+        <button type="button" class="linklike" id="licenseLogout">Log out</button>
+      </p>
+    </div>
+  </div>
+
+  <main class="wrap" id="appMain" hidden>
     <section class="panel form-panel">
       <h2>1. Tell it about you</h2>
       <form id="planForm">
@@ -183,6 +233,9 @@
           <label>Muscle Mass (%)
             <input type="number" name="musclePct" step="0.1" placeholder="e.g. 38.9">
           </label>
+          <label>Muscle Mass (lbs)
+            <input type="number" name="muscleMassLb" step="0.1" placeholder="e.g. 141.0">
+          </label>
           <label>Skeletal Muscle (%)
             <input type="number" name="skeletalMusclePct" step="0.1" placeholder="e.g. 42.3">
           </label>
@@ -210,6 +263,21 @@
           <label>Fat-Free Body Weight (lbs)
             <input type="number" name="fatFreeWeightLb" step="0.1" placeholder="e.g. 152.1">
           </label>
+          <label>Heart Rate (bpm)
+            <input type="number" name="heartRateBpm" step="1" placeholder="e.g. 62">
+          </label>
+          <label>Body Fat Mass (lbs)
+            <input type="number" name="bodyFatMassLb" step="0.1" placeholder="e.g. 32.3">
+          </label>
+          <label>Skeletal Muscle Mass (lbs)
+            <input type="number" name="skeletalMuscleMassLb" step="0.1" placeholder="e.g. 78.0">
+          </label>
+          <label>Body Water Mass (lbs)
+            <input type="number" name="bodyWaterMassLb" step="0.1" placeholder="e.g. 101.5">
+          </label>
+          <label>Phase Angle (°)
+            <input type="number" name="phaseAngleDeg" step="0.01" placeholder="e.g. 5.6">
+          </label>
         </div>
         <div class="actions">
           <button type="submit" class="btn-primary">Log Body Metrics</button>
@@ -220,7 +288,7 @@
       <div class="csv-import-row">
         <button type="button" class="btn-secondary" id="csvImportBtn">Import CSV</button>
         <input type="file" id="csvFileInput" accept=".csv,text/csv" hidden>
-        <span class="csv-import-hint">Import history exported from the Eros Scale app (tracking → history → export).</span>
+        <span class="csv-import-hint">Import history exported from the RENPHO Health app (Measurements list → Export), including RENPHO MorphoScan exports.</span>
       </div>
       <p class="csv-import-result" id="csvImportResult" hidden></p>
 

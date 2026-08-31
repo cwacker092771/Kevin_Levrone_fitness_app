@@ -9,35 +9,36 @@ function serializeRow(row) {
   };
 }
 
-async function getNote(date) {
+async function getNote(userId, date) {
   const { rows } = await pool.query(
-    "SELECT * FROM daily_notes WHERE note_date = $1",
-    [date]
+    "SELECT * FROM daily_notes WHERE user_id = $1 AND note_date = $2",
+    [userId, date]
   );
   return serializeRow(rows[0]);
 }
 
-async function upsertNote(date, note) {
+async function upsertNote(userId, date, note) {
   if (!note.trim()) {
-    await pool.query("DELETE FROM daily_notes WHERE note_date = $1", [date]);
+    await pool.query("DELETE FROM daily_notes WHERE user_id = $1 AND note_date = $2", [userId, date]);
     return { date, note: "", updatedAt: null };
   }
   const { rows } = await pool.query(
-    `INSERT INTO daily_notes (note_date, note, updated_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (note_date)
-     DO UPDATE SET note = $2, updated_at = now()
+    `INSERT INTO daily_notes (user_id, note_date, note, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (user_id, note_date)
+     DO UPDATE SET note = $3, updated_at = now()
      RETURNING *`,
-    [date, note]
+    [userId, date, note]
   );
   return serializeRow(rows[0]);
 }
 
-async function getNoteDatesInMonth(year, month) {
+async function getNoteDatesInMonth(userId, year, month) {
   const { rows } = await pool.query(
     `SELECT note_date FROM daily_notes
-     WHERE date_trunc('month', note_date) = date_trunc('month', $1::date)`,
-    [`${year}-${String(month).padStart(2, "0")}-01`]
+     WHERE user_id = $1
+       AND date_trunc('month', note_date) = date_trunc('month', $2::date)`,
+    [userId, `${year}-${String(month).padStart(2, "0")}-01`]
   );
   return rows.map((r) => r.note_date.toISOString().slice(0, 10));
 }

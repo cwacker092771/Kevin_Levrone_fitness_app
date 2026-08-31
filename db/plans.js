@@ -14,18 +14,18 @@ function serializeRow(row) {
   };
 }
 
-async function getPlan(date) {
+async function getPlan(userId, date) {
   const { rows } = await pool.query(
-    "SELECT * FROM daily_plans WHERE plan_date = $1",
-    [date]
+    "SELECT * FROM daily_plans WHERE user_id = $1 AND plan_date = $2",
+    [userId, date]
   );
   return serializeRow(rows[0]);
 }
 
-async function upsertPlan(date, inputs, stats, groups) {
+async function upsertPlan(userId, date, inputs, stats, groups) {
   const existing = await pool.query(
-    "SELECT checked FROM daily_plans WHERE plan_date = $1",
-    [date]
+    "SELECT checked FROM daily_plans WHERE user_id = $1 AND plan_date = $2",
+    [userId, date]
   );
 
   const validIds = new Set();
@@ -40,44 +40,45 @@ async function upsertPlan(date, inputs, stats, groups) {
   }
 
   const { rows } = await pool.query(
-    `INSERT INTO daily_plans (plan_date, inputs, stats, groups, checked, updated_at)
-     VALUES ($1, $2, $3, $4, $5, now())
-     ON CONFLICT (plan_date)
-     DO UPDATE SET inputs = $2, stats = $3, groups = $4, checked = $5, updated_at = now()
+    `INSERT INTO daily_plans (user_id, plan_date, inputs, stats, groups, checked, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
+     ON CONFLICT (user_id, plan_date)
+     DO UPDATE SET inputs = $3, stats = $4, groups = $5, checked = $6, updated_at = now()
      RETURNING *`,
-    [date, JSON.stringify(inputs), JSON.stringify(stats), JSON.stringify(groups), JSON.stringify(checked)]
+    [userId, date, JSON.stringify(inputs), JSON.stringify(stats), JSON.stringify(groups), JSON.stringify(checked)]
   );
   return serializeRow(rows[0]);
 }
 
-async function setItemChecked(date, itemId, checkedValue) {
+async function setItemChecked(userId, date, itemId, checkedValue) {
   const { rows } = await pool.query(
     `UPDATE daily_plans
-     SET checked = jsonb_set(checked, ARRAY[$2::text], to_jsonb($3::boolean), true),
+     SET checked = jsonb_set(checked, ARRAY[$3::text], to_jsonb($4::boolean), true),
          updated_at = now()
-     WHERE plan_date = $1
+     WHERE user_id = $1 AND plan_date = $2
      RETURNING *`,
-    [date, itemId, checkedValue]
+    [userId, date, itemId, checkedValue]
   );
   return serializeRow(rows[0]);
 }
 
-async function resetChecked(date) {
+async function resetChecked(userId, date) {
   const { rows } = await pool.query(
     `UPDATE daily_plans
      SET checked = '{}'::jsonb, updated_at = now()
-     WHERE plan_date = $1
+     WHERE user_id = $1 AND plan_date = $2
      RETURNING *`,
-    [date]
+    [userId, date]
   );
   return serializeRow(rows[0]);
 }
 
-async function getPlanDatesInMonth(year, month) {
+async function getPlanDatesInMonth(userId, year, month) {
   const { rows } = await pool.query(
     `SELECT plan_date FROM daily_plans
-     WHERE date_trunc('month', plan_date) = date_trunc('month', $1::date)`,
-    [`${year}-${String(month).padStart(2, "0")}-01`]
+     WHERE user_id = $1
+       AND date_trunc('month', plan_date) = date_trunc('month', $2::date)`,
+    [userId, `${year}-${String(month).padStart(2, "0")}-01`]
   );
   return rows.map((r) => r.plan_date.toISOString().slice(0, 10));
 }
