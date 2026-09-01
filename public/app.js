@@ -1086,9 +1086,16 @@
   const authSub = document.getElementById("authSub");
   const authError = document.getElementById("authError");
   const authHint = document.getElementById("authHint");
+  const authFlash = document.getElementById("authFlash");
   const authSubmit = document.getElementById("authSubmit");
   const authSwitchText = document.getElementById("authSwitchText");
   const authSwitchBtn = document.getElementById("authSwitchBtn");
+  const authResendBtn = document.getElementById("authResendBtn");
+  const authVerifyNotice = document.getElementById("authVerifyNotice");
+  const authVerifyEmail = document.getElementById("authVerifyEmail");
+  const authDevLink = document.getElementById("authDevLink");
+  const authVerifyResendBtn = document.getElementById("authVerifyResendBtn");
+  const authVerifyBackBtn = document.getElementById("authVerifyBackBtn");
   const appMain = document.getElementById("appMain");
   const userBar = document.getElementById("userBar");
   const userName = document.getElementById("userName");
@@ -1114,6 +1121,7 @@
     weak_password: "Pick a stronger password — see the requirements above.",
     username_taken: "An account with that email already exists.",
     invalid_credentials: "Incorrect email or password.",
+    email_not_verified: "Verify your email before logging in — check your inbox for the link.",
     missing_credentials: "Enter an email and password.",
     not_authenticated: "Your session expired — please log in again.",
     invalid_tier: "That plan isn't available — pick one of the options above.",
@@ -1123,8 +1131,14 @@
   function setAuthMode(mode) {
     authMode = mode;
     authError.hidden = true;
+    authResendBtn.hidden = true;
+    authVerifyNotice.hidden = true;
+    authForm.hidden = false;
+    authForm.parentElement.querySelector(".auth-switch").hidden = false;
     const registering = mode === "register";
+    authTitle.hidden = false;
     authTitle.textContent = registering ? "Create account" : "Log in";
+    authSub.hidden = false;
     authSub.textContent = registering
       ? "Sign up with your email and a password to start your own Levrone Protocol log."
       : "Log in to your Levrone Protocol account.";
@@ -1133,6 +1147,50 @@
     authSwitchBtn.textContent = registering ? "Log in" : "Register";
     authForm.password.autocomplete = registering ? "new-password" : "current-password";
     authHint.hidden = !registering;
+  }
+
+  // After registration (or "resend"), swap the form for a "check your email"
+  // panel. `devLink` is only present in non-production when SES isn't wired up.
+  function showVerifyNotice(email, devLink) {
+    authError.hidden = true;
+    authFlash.hidden = true;
+    authResendBtn.hidden = true;
+    authTitle.hidden = true;
+    authSub.hidden = true;
+    authForm.hidden = true;
+    authForm.parentElement.querySelector(".auth-switch").hidden = true;
+    authVerifyEmail.textContent = email;
+    authVerifyNotice.dataset.email = email;
+    if (devLink) {
+      authDevLink.hidden = false;
+      authDevLink.innerHTML = 'Dev mode (email not sent): <a href="' + devLink + '">verify now</a>';
+    } else {
+      authDevLink.hidden = true;
+    }
+    authVerifyNotice.hidden = false;
+  }
+
+  async function resendVerification(email, statusEl) {
+    if (!email) return;
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.devLink) {
+        authDevLink.hidden = false;
+        authDevLink.innerHTML = 'Dev mode (email not sent): <a href="' + data.devLink + '">verify now</a>';
+      }
+      if (statusEl) {
+        statusEl.textContent = "Sent — check your inbox.";
+        statusEl.hidden = false;
+      }
+    } catch (err) {
+      console.error("Resend failed:", err);
+      if (statusEl) { statusEl.textContent = "Could not resend. Try again."; statusEl.hidden = false; }
+    }
   }
 
   function showAuthGate() {
@@ -1290,13 +1348,23 @@
   }
 
   authSwitchBtn.addEventListener("click", () => {
+    authFlash.hidden = true;
     setAuthMode(authMode === "login" ? "register" : "login");
+    authForm.username.focus();
+  });
+
+  authResendBtn.addEventListener("click", () => resendVerification(authResendBtn.dataset.email, authFlash));
+  authVerifyResendBtn.addEventListener("click", () =>
+    resendVerification(authVerifyNotice.dataset.email, authDevLink));
+  authVerifyBackBtn.addEventListener("click", () => {
+    setAuthMode("login");
     authForm.username.focus();
   });
 
   authForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     authError.hidden = true;
+    authResendBtn.hidden = true;
     const username = authForm.username.value.trim();
     const password = authForm.password.value;
     if (!username || !password) return;
@@ -1313,6 +1381,15 @@
       if (!res.ok) {
         authError.textContent = data.message || AUTH_MESSAGES[data.error] || "Something went wrong. Try again.";
         authError.hidden = false;
+        if (data.error === "email_not_verified") {
+          authResendBtn.dataset.email = data.email || username;
+          authResendBtn.hidden = false;
+        }
+        return;
+      }
+      if (data.status === "verification_sent") {
+        authForm.reset();
+        showVerifyNotice(data.email, data.devLink);
         return;
       }
       authForm.reset();
@@ -1344,6 +1421,13 @@
 
   async function bootstrap() {
     setAuthMode("login");
+
+    // The verify link redirects here with ?verified=1 and a fresh session.
+    const justVerified = new URLSearchParams(location.search).has("verified");
+    if (justVerified) {
+      history.replaceState(null, "", location.pathname);
+    }
+
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
@@ -1353,6 +1437,10 @@
       }
     } catch (err) {
       console.error("Session check failed:", err);
+    }
+    if (justVerified) {
+      authFlash.textContent = "Email verified. Log in to continue.";
+      authFlash.hidden = false;
     }
     showAuthGate();
   }

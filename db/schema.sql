@@ -5,10 +5,25 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  email_verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username));
+
+-- Introducing email verification: add the flag to databases that predate it and,
+-- the first time it appears, drop every existing session so all current users
+-- must log in again and verify. Runs once - the guard makes reboots a no-op.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'email_verified'
+  ) THEN
+    ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT false;
+    DELETE FROM sessions;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
@@ -17,6 +32,16 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON sessions (user_id);
+
+-- One-time email verification tokens. A user has at most one live token; issuing
+-- a new one (register / resend) replaces the old.
+CREATE TABLE IF NOT EXISTS email_verifications (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS email_verifications_user_id_idx ON email_verifications (user_id);
 
 -- One row per licensed user. Accounts with no row here have not chosen a tier
 -- yet and are shown the plan picker before they can use the app.

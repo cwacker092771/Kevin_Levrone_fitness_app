@@ -82,6 +82,16 @@ Parameters:
     Type: String
     Default: main
 
+  MailFrom:
+    Type: String
+    Default: ""
+    Description: >
+      Verified Amazon SES sender for verification emails, e.g.
+      "The Levrone Protocol <noreply@yourdomain>". Leave blank to skip real
+      sending - the app then logs verification links to the journal instead.
+      SES also needs the sender/domain identity verified and, to email
+      arbitrary addresses, production (non-sandbox) access.
+
   Domain:
     Type: String
     Default: ""
@@ -180,6 +190,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: send-verification-email
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ses:SendEmail, ses:SendRawEmail]
+                Resource: "*"
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -225,8 +243,11 @@ Resources:
           NODE_ENV=production
           PORT=3000
           DATABASE_URL=postgres://${DBUsername}:${DBPassword}@${Database.Endpoint.Address}:5432/${DBName}
+          SES_REGION=${AWS::Region}
+          MAIL_FROM=${MailFrom}
           ENVEOF
           DOMAIN="${Domain}"
+          if [ -n "$DOMAIN" ]; then echo "APP_URL=https://$DOMAIN" >> /opt/levrone/app.env; fi
           if [ -z "$DOMAIN" ]; then echo "COOKIE_SECURE=false" >> /opt/levrone/app.env; fi
           chmod 600 /opt/levrone/app.env
           chown levrone:levrone /opt/levrone/app.env

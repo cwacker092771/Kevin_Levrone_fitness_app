@@ -43,6 +43,7 @@
     <div class="auth-card">
       <h2 id="authTitle">Log in</h2>
       <p class="auth-sub" id="authSub">Log in to your Levrone Protocol account.</p>
+      <p class="auth-flash" id="authFlash" hidden></p>
       <form id="authForm">
         <label>Email
           <input type="email" name="username" autocomplete="username" autocapitalize="none"
@@ -62,6 +63,21 @@
         <span id="authSwitchText">Need an account?</span>
         <button type="button" class="linklike" id="authSwitchBtn">Register</button>
       </p>
+      <button type="button" class="linklike" id="authResendBtn" hidden>Resend verification email</button>
+
+      <div id="authVerifyNotice" hidden>
+        <h2>Check your email</h2>
+        <p class="auth-sub">
+          We sent a verification link to <strong id="authVerifyEmail"></strong>.
+          Click it to activate your account, then log in. The link expires in 24 hours.
+        </p>
+        <p class="auth-devlink" id="authDevLink" hidden></p>
+        <p class="auth-switch">
+          <button type="button" class="linklike" id="authVerifyResendBtn">Resend email</button>
+          &nbsp;·&nbsp;
+          <button type="button" class="linklike" id="authVerifyBackBtn">Back to sign in</button>
+        </p>
+      </div>
     </div>
   </div>
 

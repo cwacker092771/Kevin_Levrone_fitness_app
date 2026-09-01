@@ -73,6 +73,31 @@ request once DNS resolves.
 
 ---
 
+## Email verification (Amazon SES)
+
+Registration is gated on email verification: a new account gets no session
+until the user clicks the link in the email, and login returns
+`email_not_verified` until then.
+
+To send real emails, pass `MailFrom` (a verified SES sender) at deploy time and
+set up SES in the stack's region:
+
+1. Verify a sender identity — an address or, better, a domain:
+   `aws ses verify-email-identity --email-address noreply@yourdomain` (or
+   `verify-domain-identity` + the DNS records it returns).
+2. Request production access (SES starts in *sandbox* — it can only email
+   verified addresses): Console → SES → Account dashboard → *Request production
+   access*. Until then, verify each recipient address too.
+3. Deploy with e.g. `MailFrom='The Levrone Protocol <noreply@yourdomain>'`.
+
+The instance role already grants `ses:SendEmail`. With `MailFrom` unset the app
+logs verification links to `journalctl -u levrone` instead of emailing — usable
+in a pinch, not for real users.
+
+Existing accounts: introducing this drops all sessions once and flips every
+user to unverified, so current users (including any you made before) must
+verify on next login.
+
 ## Security notes (the "plain" tradeoffs)
 
 - `DBPassword` is a `NoEcho` stack parameter. It is written into the instance

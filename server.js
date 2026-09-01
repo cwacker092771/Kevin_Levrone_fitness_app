@@ -12,6 +12,7 @@ const { attachUser, requireAuth, setSessionCookie, clearSessionCookie } = requir
 const { importMetricsCsv } = require("./lib/importMetricsCsv");
 const { BODY_METRIC_FIELDS } = require("./lib/bodyMetricFields");
 const { checkPasswordStrength } = require("./lib/passwordPolicy");
+const { sendVerificationEmail } = require("./lib/mailer");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,6 +52,21 @@ function publicUser(user) {
   return { id: user.id, username: user.username };
 }
 
+// Public base URL for links in outbound email. Behind the production proxy
+// `trust proxy` makes req.protocol/host correct; APP_URL overrides if needed.
+function baseUrl(req) {
+  return (process.env.APP_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+}
+
+async function issueVerification(req, user) {
+  const { token } = await auth.createEmailVerification(user.id);
+  const link = `${baseUrl(req)}/api/auth/verify?token=${token}`;
+  const result = await sendVerificationEmail(user.username, link);
+  // In non-production, hand the link back so the flow is testable without SES.
+  const devLink = process.env.NODE_ENV !== "production" && !result.delivered ? link : undefined;
+  return { delivered: result.delivered, devLink };
+}
+
 app.post("/api/auth/register", async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== "string" || !USERNAME_RE.test(username.trim())) {
@@ -62,11 +78,9 @@ app.post("/api/auth/register", async (req, res) => {
   }
   try {
     const user = await auth.createUser(username.trim(), password);
-    const { token } = await auth.createSession(user.id);
-    setSessionCookie(res, token);
-    // A brand-new account has no license installed — the client shows the
-    // plan picker whenever `license` is null.
-    res.status(201).json({ user: publicUser(user), license: null });
+    // No session yet — the account is inert until the email is verified.
+    const { delivered, devLink } = await issueVerification(req, user);
+    res.status(201).json({ status: "verification_sent", email: user.username, delivered, devLink });
   } catch (err) {
     if (err.code === "username_taken") {
       return res.status(409).json({ error: "username_taken" });
@@ -84,6 +98,9 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const user = await auth.verifyUser(username, password);
     if (!user) return res.status(401).json({ error: "invalid_credentials" });
+    if (!user.emailVerified) {
+      return res.status(403).json({ error: "email_not_verified", email: user.username });
+    }
     const { token } = await auth.createSession(user.id);
     setSessionCookie(res, token);
     res.json({ user: publicUser(user), license: await licenses.getLicense(user.id) });
@@ -92,6 +109,57 @@ app.post("/api/auth/login", async (req, res) => {
     res.status(500).json({ error: "server_error" });
   }
 });
+
+// Clicked from the verification email. Marks the address verified, starts a
+// session, and drops the user into the app.
+app.get("/api/auth/verify", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  try {
+    const userId = await auth.consumeEmailVerification(token);
+    if (!userId) {
+      return res
+        .status(400)
+        .type("html")
+        .send(verifyResultPage("This verification link is invalid or has expired.",
+          "Request a new one from the login screen."));
+    }
+    const { token: sessionToken } = await auth.createSession(userId);
+    setSessionCookie(res, sessionToken);
+    res.redirect("/?verified=1");
+  } catch (err) {
+    console.error(err);
+    res.status(500).type("html").send(verifyResultPage("Something went wrong verifying your email.",
+      "Try the link again in a moment."));
+  }
+});
+
+app.post("/api/auth/resend-verification", async (req, res) => {
+  const { username } = req.body || {};
+  if (typeof username !== "string") return res.status(400).json({ error: "missing_credentials" });
+  try {
+    const user = await auth.getUserByUsername(username.trim());
+    let devLink;
+    if (user && !user.emailVerified) {
+      ({ devLink } = await issueVerification(req, user));
+    }
+    // Always 200 — don't disclose whether the account exists or is already verified.
+    res.json({ status: "sent", devLink });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+function verifyResultPage(heading, sub) {
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Email verification</title>
+<body style="font-family:system-ui,sans-serif;background:#131211;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0">
+<div style="max-width:26rem;padding:2rem;text-align:center">
+<h1 style="color:#d4a72c;font-size:1.3rem">${heading}</h1>
+<p style="color:#aaa">${sub}</p>
+<p><a href="/" style="color:#d4a72c">Back to sign in</a></p>
+</div>`;
+}
 
 app.post("/api/auth/logout", async (req, res) => {
   try {
@@ -356,6 +424,7 @@ async function start() {
   const schemaSql = fs.readFileSync(path.join(__dirname, "db", "schema.sql"), "utf8");
   await pool.query(schemaSql);
   await auth.deleteExpiredSessions().catch((err) => console.error("session cleanup failed:", err));
+  await auth.deleteExpiredEmailVerifications().catch((err) => console.error("verification cleanup failed:", err));
   app.listen(PORT, () => {
     console.log(`Levrone Protocol server running at http://localhost:${PORT}`);
   });
