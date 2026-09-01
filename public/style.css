@@ -861,6 +861,14 @@ input:focus, select:focus, textarea:focus {
   margin-top: 8px;
 }
 
+.scale-status {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.scale-status.ok   { color: #5cb85c; }
+.scale-status.warn { color: var(--gold); }
+.scale-status.err  { color: #e0556b; }
+
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

@@ -292,6 +292,18 @@
       </div>
       <p class="csv-import-result" id="csvImportResult" hidden></p>
 
+      <div class="csv-import-row">
+        <button type="button" class="btn-secondary" id="scaleConnectBtn">Connect Bluetooth Scale</button>
+        <span class="scale-status" id="scaleStatus">Not connected</span>
+      </div>
+      <span class="csv-import-hint">
+        Chrome or Edge on desktop / Android, over HTTPS (or localhost). Keep this
+        tab open and step on the scale — the weigh-in imports to today
+        automatically. Body-composition figures are estimated from weight,
+        bioimpedance and the age / height / sex on the planner form above.
+      </span>
+      <p class="csv-import-result" id="scaleImportResult" hidden></p>
+
       <div class="charts-grid" id="chartsGrid"></div>
     </section>
 

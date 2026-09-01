@@ -23,6 +23,9 @@
   const csvImportBtn = document.getElementById("csvImportBtn");
   const csvFileInput = document.getElementById("csvFileInput");
   const csvImportResult = document.getElementById("csvImportResult");
+  const scaleConnectBtn = document.getElementById("scaleConnectBtn");
+  const scaleStatus = document.getElementById("scaleStatus");
+  const scaleImportResult = document.getElementById("scaleImportResult");
 
   const notesForm = document.getElementById("notesForm");
   const notesDateTag = document.getElementById("notesDateTag");
@@ -785,6 +788,281 @@
     }
   });
 
+  // -------------------------------------------------------------------------
+  // Bluetooth scale — auto-import a weigh-in the moment the user steps off.
+  //
+  // Talks straight to the scale over Web Bluetooth. Supported on Chrome / Edge
+  // (desktop + Android) over a secure origin (HTTPS or localhost); not on
+  // iOS / Safari / Firefox. The scale only reports weight + bioimpedance, so
+  // the body-composition numbers here are ESTIMATES computed from that plus
+  // the age / height / sex on the planner form — not the vendor app's figures.
+  //
+  // Protocol: Xiaomi "Mi Body Composition" style. Service 0x1A10; the notifying
+  // characteristic (0x1A11 on known devices, otherwise auto-detected) pushes
+  // 13-byte packets:
+  //   [0]      unit / control flags   (bit0 = lb, bit4 = catty, else kg)
+  //   [1]      status flags           (bit1 = impedance present, bit5 = stable)
+  //   [2..8]   device timestamp       (ignored - we log against today)
+  //   [9..10]  impedance, ohms, little-endian
+  //   [11..12] raw weight, little-endian  (/200 kg, /100 lb or catty)
+  // A 10-byte weight-only variant (older scales) is also handled.
+  //
+  // Device-specific byte parsing is confined to parseScalePacket(); if a
+  // capture from the real scale disagrees, that is the only function to touch.
+  // -------------------------------------------------------------------------
+  const SCALE_SERVICE = "00001a10-0000-1000-8000-00805f9b34fb";
+
+  let scaleDevice = null;
+  let scaleChar = null;
+  let scalePollTimer = null;
+  let scaleArmed = true;          // ready to accept the next completed weigh-in
+  let scaleImporting = false;
+  let scaleUserDisconnected = false;
+  let scaleReconnectAttempts = 0;
+
+  function scaleSupported() {
+    return !!(navigator.bluetooth && window.isSecureContext);
+  }
+
+  function setScaleStatus(text, cls) {
+    if (!scaleStatus) return;
+    scaleStatus.textContent = text;
+    scaleStatus.className = "scale-status" + (cls ? " " + cls : "");
+  }
+
+  function round1(n) { return Math.round(n * 10) / 10; }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+  function parseScalePacket(dv) {
+    if (dv.byteLength >= 13) {
+      const b0 = dv.getUint8(0);
+      const b1 = dv.getUint8(1);
+      const impedance = dv.getUint16(9, true);
+      const raw = dv.getUint16(11, true);
+      let weightKg;
+      if (b0 & 0x01) weightKg = (raw / 100) * 0.45359237;       // lb
+      else if (b0 & 0x10) weightKg = (raw / 100) * 0.5;         // catty
+      else weightKg = raw / 200;                                // kg
+      return {
+        weightKg,
+        impedance,
+        stabilized: (b1 & 0x20) !== 0,
+        hasImpedance: (b1 & 0x02) !== 0 && impedance > 0 && impedance < 3000
+      };
+    }
+    if (dv.byteLength >= 3) {
+      const b0 = dv.getUint8(0);
+      const raw = dv.getUint16(1, true);
+      const weightKg = (b0 & 0x01) ? (raw / 100) * 0.45359237 : raw / 200;
+      return { weightKg, impedance: 0, stabilized: (b0 & 0x20) !== 0, hasImpedance: false };
+    }
+    return null;
+  }
+
+  function readProfile() {
+    const sex = form.sex ? form.sex.value : null;
+    const age = form.age && form.age.value !== "" ? parseInt(form.age.value, 10) : null;
+    let heightCm = null;
+    if (form.heightFt && form.heightFt.value !== "") {
+      const inches = parseFloat(form.heightFt.value) * 12 + parseFloat(form.heightIn.value || 0);
+      if (isFinite(inches) && inches > 0) heightCm = inToCm(inches);
+    }
+    return { sex, age, heightCm };
+  }
+
+  function boneMassKg(male, weightKg, ffm) {
+    let base;
+    if (male) base = weightKg < 60 ? 2.66 : weightKg < 75 ? 3.19 : 3.69;
+    else base = weightKg < 50 ? 1.95 : weightKg < 60 ? 2.40 : 2.95;
+    return base + (ffm - (male ? 55 : 43)) * 0.0045;
+  }
+
+  // Published consumer-BIA regressions: Sun et al. (2003) for fat-free mass,
+  // Janssen et al. (2000) for skeletal muscle. Deliberately simple and clearly
+  // approximate - the vendor app's proprietary curve will differ.
+  function estimateBodyComposition(p) {
+    const { weightKg, impedance, heightCm, age } = p;
+    const male = p.sex === "male";
+    const htM = heightCm / 100;
+    const out = { bmi: weightKg / (htM * htM) };
+    out.bmr = Math.round(calcBMR(p.sex, weightKg / 0.45359237, heightCm / 2.54, age));
+
+    if (impedance > 0 && impedance < 3000) {
+      const index = (heightCm * heightCm) / impedance;
+      const ffm = male
+        ? -10.68 + 0.65 * index + 0.26 * weightKg + 0.02 * impedance
+        : -9.53 + 0.69 * index + 0.17 * weightKg + 0.02 * impedance;
+      const tbw = ffm * 0.732;
+      const fatKg = Math.max(weightKg - ffm, 0);
+      const smm = Math.max(0.401 * index + (male ? 3.825 : 0) - 0.071 * age + 5.102, 0);
+      const bone = boneMassKg(male, weightKg, ffm);
+      const muscleKg = Math.max(ffm - bone, 0);
+      const waterPct = (tbw / weightKg) * 100;
+
+      out.bodyFatPct = (fatKg / weightKg) * 100;
+      out.bodyFatMassLb = fatKg / 0.45359237;
+      out.fatFreeWeightLb = ffm / 0.45359237;
+      out.bodyWaterPct = waterPct;
+      out.bodyWaterMassLb = tbw / 0.45359237;
+      out.musclePct = (muscleKg / weightKg) * 100;
+      out.muscleMassLb = muscleKg / 0.45359237;
+      out.skeletalMusclePct = (smm / weightKg) * 100;
+      out.skeletalMuscleMassLb = smm / 0.45359237;
+      out.boneMassLb = bone / 0.45359237;
+      out.proteinPct = clamp((ffm / weightKg) * 100 - waterPct - 5.5, 10, 24);
+    }
+    return out;
+  }
+
+  async function connectScale() {
+    if (!scaleSupported()) return;
+    try {
+      setScaleStatus("Requesting device…");
+      scaleUserDisconnected = false;
+      scaleDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SCALE_SERVICE] }]
+      });
+      try { localStorage.setItem("scaleDeviceId", scaleDevice.id); } catch (e) { /* private mode */ }
+      scaleDevice.addEventListener("gattserverdisconnected", onScaleDisconnected);
+      await openScaleGatt();
+      scaleConnectBtn.textContent = "Disconnect Scale";
+    } catch (err) {
+      if (err && err.name === "NotFoundError") { setScaleStatus("No scale selected."); return; }
+      console.error("[scale] connect failed:", err);
+      setScaleStatus("Connect failed: " + (err.message || err), "err");
+    }
+  }
+
+  async function openScaleGatt() {
+    setScaleStatus("Connecting…");
+    const server = await scaleDevice.gatt.connect();
+    const service = await server.getPrimaryService(SCALE_SERVICE);
+    const chars = await service.getCharacteristics();
+    scaleChar = chars.find((c) => c.properties.notify || c.properties.indicate) || null;
+    if (!scaleChar) throw new Error("no notify characteristic under service " + SCALE_SERVICE);
+    console.log("[scale] notify characteristic:", scaleChar.uuid);
+    await scaleChar.startNotifications();
+    scaleChar.addEventListener("characteristicvaluechanged", (e) => handleScaleValue(e.target.value));
+
+    scaleReconnectAttempts = 0;
+    scaleArmed = true;
+    setScaleStatus("Connected — step on the scale.", "ok");
+
+    clearInterval(scalePollTimer);
+    scalePollTimer = setInterval(async () => {
+      if (!scaleChar) return;
+      try { handleScaleValue(await scaleChar.readValue()); }
+      catch (e) { /* transient read error - notifications are the primary path */ }
+    }, 5000);
+  }
+
+  function onScaleDisconnected() {
+    clearInterval(scalePollTimer);
+    scaleChar = null;
+    if (scaleUserDisconnected || !scaleDevice) { setScaleStatus("Disconnected."); return; }
+    const delay = Math.min(30000, 1000 * Math.pow(2, scaleReconnectAttempts++));
+    setScaleStatus("Connection lost — reconnecting…", "warn");
+    setTimeout(() => {
+      if (scaleUserDisconnected || !scaleDevice) return;
+      openScaleGatt().catch((err) => {
+        console.error("[scale] reconnect failed:", err);
+        if (scaleReconnectAttempts < 6) onScaleDisconnected();
+        else setScaleStatus("Reconnect failed — press Connect to retry.", "err");
+      });
+    }, delay);
+  }
+
+  async function handleScaleValue(dv) {
+    const r = parseScalePacket(dv);
+    if (!r) return;
+    if (r.weightKg < 5) { scaleArmed = true; return; }   // no load / stepped off
+    if (!r.stabilized || scaleImporting || !scaleArmed) return;
+    scaleArmed = false;                                   // one import per weigh-in
+    scaleImporting = true;
+    try { await importWeighIn(r); }
+    catch (err) {
+      console.error("[scale] import failed:", err);
+      setScaleStatus("Import failed: " + (err.message || err), "err");
+    }
+    finally { scaleImporting = false; }
+  }
+
+  async function importWeighIn(r) {
+    setScaleStatus("Importing weigh-in…");
+    const prof = readProfile();
+    const body = { weightLb: round1(r.weightKg / 0.45359237) };
+    let estimated = false;
+
+    if (r.hasImpedance && prof.heightCm && prof.age && prof.sex) {
+      const est = estimateBodyComposition({
+        weightKg: r.weightKg, impedance: r.impedance,
+        heightCm: prof.heightCm, age: prof.age, sex: prof.sex
+      });
+      for (const key of Object.keys(est)) {
+        if (est[key] != null && isFinite(est[key])) body[key] = round1(est[key]);
+      }
+      estimated = true;
+    } else if (prof.heightCm) {
+      body.bmi = round1(r.weightKg / Math.pow(prof.heightCm / 100, 2));
+    }
+
+    const date = toLocalDateStr(new Date());
+    await api(`/api/metrics/${date}`, { method: "POST", body });
+    if (calState.selectedDate === date) loadMetricForDate(date);
+    loadAllMetricsAndRenderCharts();
+
+    const bf = body.bodyFatPct != null ? `, ~${body.bodyFatPct}% BF` : "";
+    setScaleStatus(`Imported ${body.weightLb} lb${bf}${estimated ? " (est.)" : ""} — step off, then back on for another.`, "ok");
+    scaleImportResult.hidden = false;
+    scaleImportResult.textContent = `Scale → ${date}: `
+      + Object.keys(body).map((k) => `${k}=${body[k]}`).join(", ")
+      + (estimated ? "   — body composition estimated from bioimpedance + your profile"
+                   : r.hasImpedance ? "   — add age/height/sex on the planner form for body-composition estimates"
+                                    : "");
+  }
+
+  async function tryRestoreScale() {
+    if (!scaleSupported() || !navigator.bluetooth.getDevices) return;
+    let id = null;
+    try { id = localStorage.getItem("scaleDeviceId"); } catch (e) { /* ignore */ }
+    if (!id) return;
+    try {
+      const devices = await navigator.bluetooth.getDevices();
+      const match = devices.find((d) => d.id === id);
+      if (!match) return;
+      scaleDevice = match;
+      scaleDevice.addEventListener("gattserverdisconnected", onScaleDisconnected);
+      setScaleStatus("Reconnecting to saved scale…");
+      await openScaleGatt();
+      scaleConnectBtn.textContent = "Disconnect Scale";
+    } catch (e) {
+      setScaleStatus("Press Connect to pair your scale.");
+    }
+  }
+
+  if (scaleConnectBtn) {
+    if (!scaleSupported()) {
+      scaleConnectBtn.disabled = true;
+      setScaleStatus(
+        !window.isSecureContext
+          ? "Needs HTTPS (works on localhost)."
+          : "Bluetooth needs Chrome or Edge on desktop / Android.",
+        "err"
+      );
+    } else {
+      scaleConnectBtn.addEventListener("click", () => {
+        if (scaleDevice && scaleDevice.gatt && scaleDevice.gatt.connected) {
+          scaleUserDisconnected = true;
+          clearInterval(scalePollTimer);
+          scaleDevice.gatt.disconnect();
+          scaleConnectBtn.textContent = "Connect Bluetooth Scale";
+        } else {
+          connectScale();
+        }
+      });
+    }
+  }
+
   function loadInitialData() {
     metricsDateTag.textContent = formatDateLong(calState.selectedDate);
     loadMetricForDate(calState.selectedDate);
@@ -795,6 +1073,8 @@
 
     refreshMonthDots();
     loadPlanForDate(calState.selectedDate);
+
+    tryRestoreScale();
   }
 
   // -------------------------------------------------------------------------
