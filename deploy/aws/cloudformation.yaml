@@ -91,10 +91,15 @@ Parameters:
       runs with Secure cookies. If left blank, the app is served over plain
       HTTP on port 80 (COOKIE_SECURE=false) - testing only.
 
-  LatestAmiId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-    Description: Leave as-is (resolves to the current Amazon Linux 2023 x86_64 AMI).
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-06475e8f54266e38e
+    Description: >
+      Amazon Linux 2023 x86_64 AMI. Pinned so routine stack updates don't
+      replace the instance. To move to a newer AMI, look up the latest with
+      `aws ssm get-parameter --name
+      /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`
+      and pass it explicitly (this DOES replace the instance).
 
 Conditions:
   HasDomain: !Not [!Equals [!Ref Domain, ""]]
@@ -188,7 +193,7 @@ Resources:
       Comment: >
         First-boot log lives at /var/log/cloud-init-output.log on the instance.
     Properties:
-      ImageId: !Ref LatestAmiId
+      ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !If [HasKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
       IamInstanceProfile: !Ref InstanceProfile
