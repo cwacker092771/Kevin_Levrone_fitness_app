@@ -53,6 +53,9 @@ aws cloudformation deploy \
 - Omit `Domain=…` to skip HTTPS and serve on port 80.
 - Add `KeyName=my-keypair SSHLocation=203.0.113.4/32` to enable SSH; otherwise
   use `aws ssm start-session` (the `SSMSessionCommand` stack output).
+- Add `WebAccessCidr=your.ip/32` to restrict ports 80/443 to a single address
+  (default is open to the world). If also issuing a Let's Encrypt cert, keep
+  port 80 open until the cert is issued.
 - `SubnetIds` is a single comma-separated value (no spaces).
 - RDS takes ~5–10 minutes; the stack finishes when the instance is up, the app
   may still be installing for a minute after that.
