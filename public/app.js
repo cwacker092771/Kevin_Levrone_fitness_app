@@ -1144,6 +1144,15 @@
   let billingEnabled = false;
   let cardMounted = false;
   let billingProbed = false;
+  let cardBlockedReason = null; // set when a card is required but can't be collected here
+
+  function showCardBlocked(msg) {
+    cardBlockedReason = msg;
+    authCardField.hidden = false;
+    document.getElementById("cardElement").innerHTML = "";
+    cardError.textContent = msg;
+    cardError.hidden = false;
+  }
 
   async function initCardField() {
     if (!authCardField) return;
@@ -1151,21 +1160,37 @@
       billingProbed = true;
       try {
         const cfg = await (await fetch("/api/billing/config")).json();
-        billingEnabled = !!(cfg.enabled && cfg.publishableKey && window.Stripe);
-        if (billingEnabled) stripe = window.Stripe(cfg.publishableKey);
+        if (cfg.enabled && cfg.publishableKey) {
+          if (!window.isSecureContext) {
+            showCardBlocked("Sign-up needs a secure (HTTPS) connection to take card details.");
+            return;
+          }
+          if (!window.Stripe) {
+            showCardBlocked("Couldn't load the payment library — disable blockers for js.stripe.com and reload.");
+            return;
+          }
+          billingEnabled = true;
+          stripe = window.Stripe(cfg.publishableKey);
+        }
       } catch (e) {
         console.error("billing config failed:", e);
       }
     }
+    if (cardBlockedReason) { showCardBlocked(cardBlockedReason); return; }
     if (!billingEnabled) { authCardField.hidden = true; return; }
     authCardField.hidden = false;
     if (cardMounted) return;
     try {
       const si = await (await fetch("/api/billing/setup-intent", { method: "POST" })).json();
-      if (!si.clientSecret) { billingEnabled = false; authCardField.hidden = true; return; }
+      if (!si.clientSecret) { showCardBlocked("Card processing is unavailable right now — try again shortly."); return; }
       cardClientSecret = si.clientSecret;
       stripeElements = stripe.elements({ clientSecret: cardClientSecret, appearance: { theme: "night" } });
-      stripeElements.create("payment", { layout: "tabs" }).mount("#cardElement");
+      const paymentEl = stripeElements.create("payment", { layout: "tabs" });
+      paymentEl.on("loaderror", (ev) => {
+        showCardBlocked((ev && ev.error && ev.error.message) ||
+          "The card form failed to load. Reload the page and try again.");
+      });
+      paymentEl.mount("#cardElement");
       cardMounted = true;
     } catch (e) {
       console.error("card element init failed:", e);
@@ -1446,8 +1471,14 @@
     const password = authForm.password.value;
     if (!username || !password) return;
 
-    authSubmit.disabled = true;
     const registering = authMode === "register";
+    if (registering && cardBlockedReason) {
+      authError.textContent = cardBlockedReason;
+      authError.hidden = false;
+      return;
+    }
+
+    authSubmit.disabled = true;
     const endpoint = registering ? "/api/auth/register" : "/api/auth/login";
     const payload = { username, password };
     try {
