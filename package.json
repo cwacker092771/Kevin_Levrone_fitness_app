@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "dev": "node --env-file-if-exists=.env server.js",
     "db:setup": "node db/setup.js"
   },
   "dependencies": {
