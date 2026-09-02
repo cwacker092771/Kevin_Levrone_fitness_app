@@ -314,7 +314,11 @@ Resources:
           if [ -n "$DOMAIN" ]; then
             printf '%s {\n    reverse_proxy 127.0.0.1:3000\n}\n' "$DOMAIN" > /etc/caddy/Caddyfile
           elif [ "$SELF_TLS" = "true" ]; then
-            printf '{\n    local_certs\n}\n:443 {\n    reverse_proxy 127.0.0.1:3000\n}\n:80 {\n    redir https://{host}{uri} permanent\n}\n' > /etc/caddy/Caddyfile
+            # Name the site after the instance's public DNS so Caddy mints an
+            # internal cert for it (a bare :443 has no cert to present).
+            IMDS_TOK=$(curl -sX PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+            PUBHOST=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOK" http://169.254.169.254/latest/meta-data/public-hostname)
+            printf '%s {\n    tls internal\n    reverse_proxy 127.0.0.1:3000\n}\n' "$PUBHOST" > /etc/caddy/Caddyfile
           else
             printf ':80 {\n    reverse_proxy 127.0.0.1:3000\n}\n' > /etc/caddy/Caddyfile
           fi

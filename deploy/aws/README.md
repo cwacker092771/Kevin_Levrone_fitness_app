@@ -137,10 +137,13 @@ certificate and redirects 80 → 443. Browsers show a one-time "not private"
 warning you click through; after that it's a secure context and everything
 works. Cookies stay `Secure`.
 
-On a running instance, switch by hand in an SSM session:
+On a running instance, switch by hand in an SSM session (the site must be
+*named* after the instance's public DNS - a bare `:443` has no cert to serve):
 
 ```
-printf '{\n    local_certs\n}\n:443 {\n    reverse_proxy 127.0.0.1:3000\n}\n:80 {\n    redir https://{host}{uri} permanent\n}\n' | sudo tee /etc/caddy/Caddyfile
+TOK=$(curl -sX PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+HOST=$(curl -s -H "X-aws-ec2-metadata-token: $TOK" http://169.254.169.254/latest/meta-data/public-hostname)
+printf '%s {\n    tls internal\n    reverse_proxy 127.0.0.1:3000\n}\n' "$HOST" | sudo tee /etc/caddy/Caddyfile
 sudo sed -i '/^COOKIE_SECURE=/d' /opt/levrone/app.env
 sudo systemctl restart caddy levrone
 ```
