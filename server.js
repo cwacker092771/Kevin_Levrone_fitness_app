@@ -465,15 +465,46 @@ app.post("/api/notes/:date", async (req, res) => {
   }
 });
 
+// Local-dev HTTPS: when HTTPS_PORT is set, serve TLS on it with the cert pair
+// in ./certs (run `npm run gen-cert` once) and turn the plain-HTTP port into a
+// permanent redirect to it. In production TLS is the reverse proxy's job, so
+// this stays off.
+function listen() {
+  const httpsPort = process.env.HTTPS_PORT;
+  const certDir = path.join(__dirname, "certs");
+  const keyPath = path.join(certDir, "localhost-key.pem");
+  const certPath = path.join(certDir, "localhost.pem");
+
+  if (httpsPort && fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    const https = require("https");
+    const http = require("http");
+    https
+      .createServer({ key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) }, app)
+      .listen(httpsPort, () => console.log(`Levrone Protocol (HTTPS) at https://localhost:${httpsPort}`));
+    http
+      .createServer((req, res) => {
+        res.writeHead(301, { Location: `https://localhost:${httpsPort}${req.url}` });
+        res.end();
+      })
+      .listen(PORT, () => console.log(`http://localhost:${PORT} -> redirects to https://localhost:${httpsPort}`));
+    return;
+  }
+
+  if (httpsPort) {
+    console.warn(`HTTPS_PORT set but ./certs is missing - run 'npm run gen-cert'. Serving plain HTTP.`);
+  }
+  app.listen(PORT, () => {
+    console.log(`Levrone Protocol server running at http://localhost:${PORT}`);
+  });
+}
+
 async function start() {
   const schemaSql = fs.readFileSync(path.join(__dirname, "db", "schema.sql"), "utf8");
   await pool.query(schemaSql);
   billing.warnIfBillingMisconfigured();
   await auth.deleteExpiredSessions().catch((err) => console.error("session cleanup failed:", err));
   await auth.deleteExpiredEmailVerifications().catch((err) => console.error("verification cleanup failed:", err));
-  app.listen(PORT, () => {
-    console.log(`Levrone Protocol server running at http://localhost:${PORT}`);
-  });
+  listen();
 }
 
 start().catch((err) => {

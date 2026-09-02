@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --env-file-if-exists=.env server.js",
+    "dev:https": "HTTPS_PORT=3443 node --env-file-if-exists=.env server.js",
+    "gen-cert": "bash scripts/gen-cert.sh",
     "db:setup": "node db/setup.js"
   },
   "dependencies": {
