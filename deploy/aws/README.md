@@ -98,6 +98,25 @@ Existing accounts: introducing this drops all sessions once and flips every
 user to unverified, so current users (including any you made before) must
 verify on next login.
 
+## Card on file at registration (Stripe)
+
+Registration requires a valid card. It's entered in Stripe's own iframe, saved
+via a SetupIntent, and **not charged**. Pass both keys at deploy time:
+
+```
+StripeSecretKey='rk_live_...'   StripePublishableKey='pk_live_...'
+```
+
+Prefer a **restricted key** (`rk_`) limited to *SetupIntents (write)* and
+*Customers (write)*. In the Stripe Dashboard's payment-method settings for this
+integration, turn off everything except cards if you want a strict
+"credit card only" prompt (otherwise the Payment Element also offers whatever
+else is enabled). With no keys set, the card step is skipped in dev and the app
+**refuses to start** in production.
+
+On a running instance (keys not baked in via UserData) add them by hand:
+`printf 'STRIPE_SECRET_KEY=...\nSTRIPE_PUBLISHABLE_KEY=...\n' | sudo tee -a /opt/levrone/app.env && sudo systemctl restart levrone`.
+
 ## Security notes (the "plain" tradeoffs)
 
 - `DBPassword` is a `NoEcho` stack parameter. It is written into the instance

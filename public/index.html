@@ -52,6 +52,12 @@
         <label>Password
           <input type="password" name="password" autocomplete="current-password" required>
         </label>
+        <div class="auth-card-field" id="authCardField" hidden>
+          <span class="auth-card-label">Card</span>
+          <div id="cardElement"></div>
+          <p class="auth-error" id="cardError" hidden></p>
+          <p class="auth-card-note">Card on file to activate your account — you won't be charged now.</p>
+        </div>
         <p class="auth-hint" id="authHint" hidden>
           At least 12 characters, mixing upper- and lower-case letters, digits and
           symbols. No common words, sequences, or your email.
@@ -342,6 +348,7 @@
     </div>
   </footer>
 
+<script src="https://js.stripe.com/v3/"></script>
 <script src="app.js"></script>
 </body>
 </html>

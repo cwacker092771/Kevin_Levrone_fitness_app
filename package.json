@@ -14,6 +14,7 @@
   "dependencies": {
     "@aws-sdk/client-ses": "^3.1124.0",
     "express": "^4.19.2",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "stripe": "^22.6.1"
   }
 }

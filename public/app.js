@@ -1087,6 +1087,8 @@
   const authError = document.getElementById("authError");
   const authHint = document.getElementById("authHint");
   const authFlash = document.getElementById("authFlash");
+  const authCardField = document.getElementById("authCardField");
+  const cardError = document.getElementById("cardError");
   const authSubmit = document.getElementById("authSubmit");
   const authSwitchText = document.getElementById("authSwitchText");
   const authSwitchBtn = document.getElementById("authSwitchBtn");
@@ -1122,11 +1124,83 @@
     username_taken: "An account with that email already exists.",
     invalid_credentials: "Incorrect email or password.",
     email_not_verified: "Verify your email before logging in — check your inbox for the link.",
+    card_not_validated: "Your card couldn't be validated — check the details and try again.",
+    billing_unavailable: "Card processing is temporarily unavailable. Try again shortly.",
     missing_credentials: "Enter an email and password.",
     not_authenticated: "Your session expired — please log in again.",
     invalid_tier: "That plan isn't available — pick one of the options above.",
     invalid_addon: "That additional service isn't available — pick another option."
   };
+
+  // -------------------------------------------------------------------------
+  // Registration card-on-file (Stripe). A SetupIntent is confirmed with the
+  // card in Stripe's iframe; only its id is sent to /register, which validates
+  // it and saves the card. Nothing is charged.
+  // -------------------------------------------------------------------------
+  let stripe = null;
+  let stripeElements = null;
+  let cardClientSecret = null;
+  let billingEnabled = false;
+  let cardMounted = false;
+  let billingProbed = false;
+
+  async function initCardField() {
+    if (!authCardField) return;
+    if (!billingProbed) {
+      billingProbed = true;
+      try {
+        const cfg = await (await fetch("/api/billing/config")).json();
+        billingEnabled = !!(cfg.enabled && cfg.publishableKey && window.Stripe);
+        if (billingEnabled) stripe = window.Stripe(cfg.publishableKey);
+      } catch (e) {
+        console.error("billing config failed:", e);
+      }
+    }
+    if (!billingEnabled) { authCardField.hidden = true; return; }
+    authCardField.hidden = false;
+    if (cardMounted) return;
+    try {
+      const si = await (await fetch("/api/billing/setup-intent", { method: "POST" })).json();
+      if (!si.clientSecret) { billingEnabled = false; authCardField.hidden = true; return; }
+      cardClientSecret = si.clientSecret;
+      stripeElements = stripe.elements({ clientSecret: cardClientSecret, appearance: { theme: "night" } });
+      stripeElements.create("payment", { layout: "tabs" }).mount("#cardElement");
+      cardMounted = true;
+    } catch (e) {
+      console.error("card element init failed:", e);
+      billingEnabled = false;
+      authCardField.hidden = true;
+    }
+  }
+
+  function resetCardField() {
+    if (stripeElements) { try { stripeElements.getElement("payment").unmount(); } catch (e) { /* ignore */ } }
+    stripeElements = null;
+    cardClientSecret = null;
+    cardMounted = false;
+  }
+
+  // Confirms the SetupIntent with the entered card. Resolves to the setup
+  // intent id on success, or null (with cardError shown) on failure. The
+  // SetupIntent is created with allow_redirects:"never", so any 3-D Secure
+  // challenge runs inline and this never navigates away.
+  async function confirmCard() {
+    cardError.hidden = true;
+    if (!stripe || !stripeElements) return null;
+    const { error: submitErr } = await stripeElements.submit();
+    if (submitErr) { cardError.textContent = submitErr.message; cardError.hidden = false; return null; }
+    const { error, setupIntent } = await stripe.confirmSetup({
+      elements: stripeElements,
+      clientSecret: cardClientSecret,
+      redirect: "if_required"
+    });
+    if (error) {
+      cardError.textContent = error.message || "Card could not be verified.";
+      cardError.hidden = false;
+      return null;
+    }
+    return setupIntent && setupIntent.status === "succeeded" ? setupIntent.id : null;
+  }
 
   function setAuthMode(mode) {
     authMode = mode;
@@ -1147,6 +1221,8 @@
     authSwitchBtn.textContent = registering ? "Log in" : "Register";
     authForm.password.autocomplete = registering ? "new-password" : "current-password";
     authHint.hidden = !registering;
+    if (registering) initCardField();
+    else if (authCardField) authCardField.hidden = true;
   }
 
   // After registration (or "resend"), swap the form for a "check your email"
@@ -1370,12 +1446,19 @@
     if (!username || !password) return;
 
     authSubmit.disabled = true;
-    const endpoint = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+    const registering = authMode === "register";
+    const endpoint = registering ? "/api/auth/register" : "/api/auth/login";
+    const payload = { username, password };
     try {
+      if (registering && billingEnabled) {
+        const setupIntentId = await confirmCard();
+        if (!setupIntentId) { authSubmit.disabled = false; return; }
+        payload.setupIntentId = setupIntentId;
+      }
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(payload)
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1389,6 +1472,7 @@
       }
       if (data.status === "verification_sent") {
         authForm.reset();
+        resetCardField();
         showVerifyNotice(data.email, data.devLink);
         return;
       }

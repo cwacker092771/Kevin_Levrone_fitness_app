@@ -103,9 +103,10 @@ body {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 20px;
+  overflow-y: auto;
   background:
     radial-gradient(ellipse at top, rgba(216, 31, 38, 0.14), transparent 55%),
     rgba(6, 6, 8, 0.92);
@@ -115,6 +116,7 @@ body {
 .auth-card {
   width: 100%;
   max-width: 380px;
+  margin: auto;   /* centre when it fits, but let it grow past the viewport */
   background: var(--panel);
   border: 1px solid var(--border);
   border-top: 3px solid var(--gold);
@@ -189,6 +191,26 @@ body {
   word-break: break-all;
 }
 .auth-devlink a { color: var(--gold); }
+
+.auth-card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-card-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+#cardElement {
+  padding: 4px 0;
+}
+.auth-card-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
 
 .auth-error {
   margin: 0;

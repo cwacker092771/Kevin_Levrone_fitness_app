@@ -13,6 +13,7 @@ const { importMetricsCsv } = require("./lib/importMetricsCsv");
 const { BODY_METRIC_FIELDS } = require("./lib/bodyMetricFields");
 const { checkPasswordStrength } = require("./lib/passwordPolicy");
 const { sendVerificationEmail } = require("./lib/mailer");
+const billing = require("./lib/billing");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,8 +68,24 @@ async function issueVerification(req, user) {
   return { delivered: result.delivered, devLink };
 }
 
+// Card collection: the client creates a SetupIntent here, confirms it with the
+// card in Stripe's own iframe, then sends the setup intent id to /register.
+app.get("/api/billing/config", (req, res) => {
+  res.json({ enabled: billing.billingConfigured, publishableKey: billing.publishableKey() });
+});
+
+app.post("/api/billing/setup-intent", async (req, res) => {
+  if (!billing.billingConfigured) return res.json({ enabled: false });
+  try {
+    res.json({ enabled: true, ...(await billing.createSetupIntent()) });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ error: "billing_unavailable" });
+  }
+});
+
 app.post("/api/auth/register", async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, setupIntentId } = req.body || {};
   if (typeof username !== "string" || !USERNAME_RE.test(username.trim())) {
     return res.status(400).json({ error: "invalid_username" });
   }
@@ -76,8 +93,33 @@ app.post("/api/auth/register", async (req, res) => {
   if (pwProblem) {
     return res.status(400).json({ error: "weak_password", message: pwProblem });
   }
+
+  // Reject a taken email before touching Stripe, so we don't create a customer
+  // for a registration that can't succeed.
+  if (await auth.getUserByUsername(username.trim())) {
+    return res.status(409).json({ error: "username_taken" });
+  }
+
+  // Validate and store the card before creating the account, so a failed card
+  // never leaves an orphaned user behind.
+  let card = null;
+  if (billing.billingConfigured) {
+    try {
+      card = await billing.finalizeCard(setupIntentId, username.trim());
+    } catch (err) {
+      if (err.code === "card_not_validated") {
+        return res.status(402).json({ error: "card_not_validated" });
+      }
+      console.error(err);
+      return res.status(502).json({ error: "billing_unavailable" });
+    }
+  }
+
   try {
-    const user = await auth.createUser(username.trim(), password);
+    const user = await auth.createUser(username.trim(), password, {
+      stripeCustomerId: card && card.customerId,
+      stripePaymentMethodId: card && card.paymentMethodId
+    });
     // No session yet — the account is inert until the email is verified.
     const { delivered, devLink } = await issueVerification(req, user);
     res.status(201).json({ status: "verification_sent", email: user.username, delivered, devLink });
@@ -423,6 +465,7 @@ app.post("/api/notes/:date", async (req, res) => {
 async function start() {
   const schemaSql = fs.readFileSync(path.join(__dirname, "db", "schema.sql"), "utf8");
   await pool.query(schemaSql);
+  billing.requireBillingInProduction();
   await auth.deleteExpiredSessions().catch((err) => console.error("session cleanup failed:", err));
   await auth.deleteExpiredEmailVerifications().catch((err) => console.error("verification cleanup failed:", err));
   app.listen(PORT, () => {

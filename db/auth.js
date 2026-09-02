@@ -28,12 +28,15 @@ function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();
 }
 
-async function createUser(username, password) {
+async function createUser(username, password, billing) {
   const name = normalizeUsername(username);
+  const b = billing || {};
   try {
     const { rows } = await pool.query(
-      "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username, email_verified",
-      [name, hashPassword(password)]
+      `INSERT INTO users (username, password_hash, stripe_customer_id, stripe_payment_method_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, username, email_verified`,
+      [name, hashPassword(password), b.stripeCustomerId || null, b.stripePaymentMethodId || null]
     );
     return rows[0];
   } catch (err) {

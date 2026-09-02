@@ -92,6 +92,21 @@ Parameters:
       SES also needs the sender/domain identity verified and, to email
       arbitrary addresses, production (non-sandbox) access.
 
+  StripeSecretKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >
+      Stripe secret/restricted key (rk_live_... preferred, scoped to SetupIntents
+      + Customers). Registration collects a card on file; nothing is charged.
+      Leave blank in dev to skip the card step; in production the app refuses to
+      start without both Stripe keys.
+
+  StripePublishableKey:
+    Type: String
+    Default: ""
+    Description: Stripe publishable key (pk_live_...), served to the browser.
+
   Domain:
     Type: String
     Default: ""
@@ -245,6 +260,8 @@ Resources:
           DATABASE_URL=postgres://${DBUsername}:${DBPassword}@${Database.Endpoint.Address}:5432/${DBName}
           SES_REGION=${AWS::Region}
           MAIL_FROM=${MailFrom}
+          STRIPE_SECRET_KEY=${StripeSecretKey}
+          STRIPE_PUBLISHABLE_KEY=${StripePublishableKey}
           ENVEOF
           DOMAIN="${Domain}"
           if [ -n "$DOMAIN" ]; then echo "APP_URL=https://$DOMAIN" >> /opt/levrone/app.env; fi
