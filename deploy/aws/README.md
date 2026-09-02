@@ -128,6 +128,25 @@ On a running instance (keys not baked in via UserData) add them by hand:
   Session Manager and remove the port 22 rule.
 - The instance has a public IP. There is no WAF or rate limiting in front of it.
 
+## HTTPS without a domain (self-signed)
+
+Card entry (Stripe) and the Bluetooth scale need a **secure context**, which
+plain HTTP isn't. If you don't have a domain yet, deploy with
+`SelfSignedTls=true` (and no `Domain`): Caddy serves HTTPS on 443 with its own
+certificate and redirects 80 → 443. Browsers show a one-time "not private"
+warning you click through; after that it's a secure context and everything
+works. Cookies stay `Secure`.
+
+On a running instance, switch by hand in an SSM session:
+
+```
+printf '{\n    local_certs\n}\n:443 {\n    reverse_proxy 127.0.0.1:3000\n}\n:80 {\n    redir https://{host}{uri} permanent\n}\n' | sudo tee /etc/caddy/Caddyfile
+sudo sed -i '/^COOKIE_SECURE=/d' /opt/levrone/app.env
+sudo systemctl restart caddy levrone
+```
+
+Get a real cert later by registering a domain and redeploying with `Domain=`.
+
 ## Cookies & HTTPS
 
 Session cookies are marked `Secure` in production, so **login only works over

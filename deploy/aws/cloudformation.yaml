@@ -114,7 +114,18 @@ Parameters:
       Optional. A domain name you will point (A record) at the instance's
       public IP. If set, Caddy obtains a Let's Encrypt certificate and the app
       runs with Secure cookies. If left blank, the app is served over plain
-      HTTP on port 80 (COOKIE_SECURE=false) - testing only.
+      HTTP on port 80 (COOKIE_SECURE=false) - testing only, unless SelfSignedTls
+      is true.
+
+  SelfSignedTls:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      When true and no Domain is set, Caddy serves HTTPS on 443 with its own
+      self-signed certificate (browsers show a one-time warning) and redirects
+      80 to 443. Enough of a secure context for card entry / Web Bluetooth
+      without a domain. Ignored when Domain is set.
 
   AmiId:
     Type: AWS::EC2::Image::Id
@@ -264,8 +275,9 @@ Resources:
           STRIPE_PUBLISHABLE_KEY=${StripePublishableKey}
           ENVEOF
           DOMAIN="${Domain}"
+          SELF_TLS="${SelfSignedTls}"
           if [ -n "$DOMAIN" ]; then echo "APP_URL=https://$DOMAIN" >> /opt/levrone/app.env; fi
-          if [ -z "$DOMAIN" ]; then echo "COOKIE_SECURE=false" >> /opt/levrone/app.env; fi
+          if [ -z "$DOMAIN" ] && [ "$SELF_TLS" != "true" ]; then echo "COOKIE_SECURE=false" >> /opt/levrone/app.env; fi
           chmod 600 /opt/levrone/app.env
           chown levrone:levrone /opt/levrone/app.env
 
@@ -301,6 +313,8 @@ Resources:
 
           if [ -n "$DOMAIN" ]; then
             printf '%s {\n    reverse_proxy 127.0.0.1:3000\n}\n' "$DOMAIN" > /etc/caddy/Caddyfile
+          elif [ "$SELF_TLS" = "true" ]; then
+            printf '{\n    local_certs\n}\n:443 {\n    reverse_proxy 127.0.0.1:3000\n}\n:80 {\n    redir https://{host}{uri} permanent\n}\n' > /etc/caddy/Caddyfile
           else
             printf ':80 {\n    reverse_proxy 127.0.0.1:3000\n}\n' > /etc/caddy/Caddyfile
           fi
