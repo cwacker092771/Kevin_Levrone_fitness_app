@@ -85,6 +85,9 @@ app.post("/api/billing/setup-intent", async (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
+  if (billing.registrationBlocked) {
+    return res.status(503).json({ error: "registration_closed" });
+  }
   const { username, password, setupIntentId } = req.body || {};
   if (typeof username !== "string" || !USERNAME_RE.test(username.trim())) {
     return res.status(400).json({ error: "invalid_username" });
@@ -465,7 +468,7 @@ app.post("/api/notes/:date", async (req, res) => {
 async function start() {
   const schemaSql = fs.readFileSync(path.join(__dirname, "db", "schema.sql"), "utf8");
   await pool.query(schemaSql);
-  billing.requireBillingInProduction();
+  billing.warnIfBillingMisconfigured();
   await auth.deleteExpiredSessions().catch((err) => console.error("session cleanup failed:", err));
   await auth.deleteExpiredEmailVerifications().catch((err) => console.error("verification cleanup failed:", err));
   app.listen(PORT, () => {

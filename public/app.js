@@ -1126,6 +1126,7 @@
     email_not_verified: "Verify your email before logging in — check your inbox for the link.",
     card_not_validated: "Your card couldn't be validated — check the details and try again.",
     billing_unavailable: "Card processing is temporarily unavailable. Try again shortly.",
+    registration_closed: "New sign-ups are temporarily closed. Check back soon.",
     missing_credentials: "Enter an email and password.",
     not_authenticated: "Your session expired — please log in again.",
     invalid_tier: "That plan isn't available — pick one of the options above.",
