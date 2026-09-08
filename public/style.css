@@ -177,7 +177,7 @@ body {
   font-size: 0.56rem;
   letter-spacing: 0.06em;
   text-transform: none;
-  color: var(--text-dim, #b7b19c);
+  color: var(--gold);
 }
 .header-photo.generating .header-photo-img { animation: goal-pulse 1.3s ease-in-out infinite; }
 @keyframes goal-pulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.3; } }
