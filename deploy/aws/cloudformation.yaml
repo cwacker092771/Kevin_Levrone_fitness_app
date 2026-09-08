@@ -107,6 +107,20 @@ Parameters:
     Default: ""
     Description: Stripe publishable key (pk_live_...), served to the browser.
 
+  GoalImage:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Enable the AI "goal physique" portrait (Amazon Bedrock). Costs per image
+      and needs Bedrock image-model access enabled in the console. The instance
+      role already grants bedrock:InvokeModel.
+
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+    Description: Region for the Bedrock image model (used only when GoalImage=true).
+
   Domain:
     Type: String
     Default: ""
@@ -224,6 +238,13 @@ Resources:
               - Effect: Allow
                 Action: [ses:SendEmail, ses:SendRawEmail]
                 Resource: "*"
+        - PolicyName: goal-image-bedrock
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: "*"
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -273,6 +294,8 @@ Resources:
           MAIL_FROM=${MailFrom}
           STRIPE_SECRET_KEY=${StripeSecretKey}
           STRIPE_PUBLISHABLE_KEY=${StripePublishableKey}
+          GOAL_IMAGE=${GoalImage}
+          BEDROCK_REGION=${BedrockRegion}
           ENVEOF
           DOMAIN="${Domain}"
           SELF_TLS="${SelfSignedTls}"

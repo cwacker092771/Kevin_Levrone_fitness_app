@@ -529,6 +529,7 @@
       renderPlan(plan);
       refreshMonthDots();
       resultsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      refreshGoalImage(inputs);
     } catch (err) {
       console.error("Failed to save plan:", err);
       showFormError("Could not save this plan — check that the server and database are running.");
@@ -1104,6 +1105,8 @@
   const avatarError = document.getElementById("avatarError");
   const userAvatar = document.getElementById("userAvatar");
   const headerAvatar = document.getElementById("headerAvatar");
+  const goalImageBox = document.getElementById("goalImageBox");
+  const goalImage = document.getElementById("goalImage");
   const authSubmit = document.getElementById("authSubmit");
   const authSwitchText = document.getElementById("authSwitchText");
   const authSwitchBtn = document.getElementById("authSwitchBtn");
@@ -1318,6 +1321,41 @@
     });
   }
 
+  // The AI "goal physique" portrait, shown bottom-right of the header.
+  function applyGoalImage(user) {
+    if (!goalImageBox) return;
+    if (user && user.hasGoalImage) {
+      goalImage.src = "/api/goal-image?t=" + Date.now();
+      goalImageBox.hidden = false;
+    } else {
+      goalImageBox.hidden = true;
+      goalImage.removeAttribute("src");
+    }
+  }
+
+  // Fired after the goal form is saved. Regenerates only when the goal changed
+  // (the server decides). Best-effort - failures are silent.
+  async function refreshGoalImage(inputs) {
+    if (!goalImageBox) return;
+    goalImageBox.hidden = false;
+    goalImageBox.classList.add("generating");
+    try {
+      const r = await api("/api/goal-image", {
+        method: "POST",
+        body: { sex: inputs.sex, goal: inputs.goal, experience: inputs.experience, days: inputs.days }
+      });
+      if (r && (r.status === "generated" || r.status === "current")) {
+        goalImage.src = "/api/goal-image?t=" + Date.now();
+      } else {
+        goalImageBox.hidden = true;   // disabled / no_photo
+      }
+    } catch (e) {
+      goalImageBox.hidden = !goalImage.getAttribute("src");
+    } finally {
+      goalImageBox.classList.remove("generating");
+    }
+  }
+
   function setAuthMode(mode) {
     authMode = mode;
     authError.hidden = true;
@@ -1402,6 +1440,7 @@
     userBar.hidden = false;
     userName.textContent = user.username;
     applyAvatar(user);
+    applyGoalImage(user);
     applyServiceStatus(license);
     if (!appDataLoaded) {
       appDataLoaded = true;

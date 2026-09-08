@@ -56,7 +56,9 @@ async function createUser(username, password, opts) {
 
 async function verifyUser(username, password) {
   const { rows } = await pool.query(
-    `SELECT id, username, password_hash, email_verified, (avatar_mime IS NOT NULL) AS has_avatar
+    `SELECT id, username, password_hash, email_verified,
+            (avatar_mime IS NOT NULL) AS has_avatar,
+            (goal_image_mime IS NOT NULL) AS has_goal_image
        FROM users WHERE lower(username) = lower($1)`,
     [normalizeUsername(username)]
   );
@@ -66,7 +68,8 @@ async function verifyUser(username, password) {
     id: user.id,
     username: user.username,
     emailVerified: user.email_verified,
-    has_avatar: user.has_avatar
+    has_avatar: user.has_avatar,
+    has_goal_image: user.has_goal_image
   };
 }
 
@@ -133,7 +136,9 @@ async function createSession(userId) {
 async function getSessionUser(token) {
   if (!token) return null;
   const { rows } = await pool.query(
-    `SELECT u.id, u.username, (u.avatar_mime IS NOT NULL) AS has_avatar
+    `SELECT u.id, u.username,
+            (u.avatar_mime IS NOT NULL) AS has_avatar,
+            (u.goal_image_mime IS NOT NULL) AS has_goal_image
        FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.token = $1 AND s.expires_at > now() AND u.email_verified`,
@@ -149,6 +154,30 @@ async function getAvatar(userId) {
   );
   if (!rows[0] || !rows[0].avatar_data) return null;
   return { data: rows[0].avatar_data, mime: rows[0].avatar_mime };
+}
+
+async function getGoalImage(userId) {
+  const { rows } = await pool.query(
+    "SELECT goal_image_data, goal_image_mime FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!rows[0] || !rows[0].goal_image_data) return null;
+  return { data: rows[0].goal_image_data, mime: rows[0].goal_image_mime };
+}
+
+async function getGoalImageState(userId) {
+  const { rows } = await pool.query(
+    "SELECT (goal_image_mime IS NOT NULL) AS has_image, goal_signature FROM users WHERE id = $1",
+    [userId]
+  );
+  return rows[0] ? { hasImage: rows[0].has_image, signature: rows[0].goal_signature } : { hasImage: false, signature: null };
+}
+
+async function setGoalImage(userId, { data, mime, signature }) {
+  await pool.query(
+    "UPDATE users SET goal_image_data = $2, goal_image_mime = $3, goal_signature = $4 WHERE id = $1",
+    [userId, data, mime, signature]
+  );
 }
 
 async function deleteSession(token) {
@@ -175,5 +204,8 @@ module.exports = {
   consumeEmailVerification,
   deleteExpiredEmailVerifications,
   getStripeCustomerId,
-  getAvatar
+  getAvatar,
+  getGoalImage,
+  getGoalImageState,
+  setGoalImage
 };

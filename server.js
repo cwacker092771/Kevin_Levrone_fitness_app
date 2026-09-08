@@ -15,6 +15,7 @@ const { checkPasswordStrength } = require("./lib/passwordPolicy");
 const { sendVerificationEmail } = require("./lib/mailer");
 const billing = require("./lib/billing");
 const { parseAvatarDataUri } = require("./lib/avatar");
+const goalImage = require("./lib/goalImage");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,7 +52,12 @@ function isValidDate(str) {
 // Auth
 // ---------------------------------------------------------------------------
 function publicUser(user) {
-  return { id: user.id, username: user.username, hasAvatar: !!user.has_avatar };
+  return {
+    id: user.id,
+    username: user.username,
+    hasAvatar: !!user.has_avatar,
+    hasGoalImage: !!user.has_goal_image
+  };
 }
 
 // Public base URL for links in outbound email. Behind the production proxy
@@ -263,6 +269,21 @@ app.get("/api/avatar", async (req, res) => {
   }
 });
 
+// The AI-generated "goal physique" portrait.
+app.get("/api/goal-image", async (req, res) => {
+  try {
+    const img = await auth.getGoalImage(req.userId);
+    if (!img) return res.status(404).end();
+    res.set("Content-Type", img.mime);
+    res.set("Cache-Control", "private, max-age=86400");
+    res.send(img.data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+
 // Any signed-in user can read or install their license. This sits above the
 // requireLicense gate so an unlicensed account can still pick a tier.
 app.get("/api/license", async (req, res) => {
@@ -341,6 +362,30 @@ app.use("/api", (req, res, next) => {
     return res.status(403).json({ error: "service_canceled" });
   }
   next();
+});
+
+// Kicked off by the client right after the goal form is saved. Regenerates the
+// "goal physique" portrait only when the goal signature changed. Slow (Bedrock),
+// so the client shows a placeholder while it runs.
+app.post("/api/goal-image", async (req, res) => {
+  if (!goalImage.enabled) return res.json({ status: "disabled" });
+  const goal = req.body || {};
+  const signature = goalImage.goalSignature(goal);
+  try {
+    const state = await auth.getGoalImageState(req.userId);
+    if (state.hasImage && state.signature === signature) {
+      return res.json({ status: "current" });
+    }
+    const avatar = await auth.getAvatar(req.userId);
+    if (!avatar) return res.json({ status: "no_photo" });
+
+    const png = await goalImage.generateGoalImage(goal, avatar.data);
+    await auth.setGoalImage(req.userId, { data: png, mime: "image/png", signature });
+    res.json({ status: "generated" });
+  } catch (err) {
+    console.error("goal image generation failed:", err.message);
+    res.status(502).json({ error: "goal_image_failed" });
+  }
 });
 
 // ---------------------------------------------------------------------------

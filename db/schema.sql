@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
   stripe_payment_method_id TEXT,
   avatar_data BYTEA,
   avatar_mime TEXT,
+  goal_image_data BYTEA,
+  goal_image_mime TEXT,
+  goal_signature TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -22,6 +25,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_payment_method_id TEXT;
 -- client-side). back-fill for older databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_data BYTEA;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_mime TEXT;
+-- AI-generated "goal physique" portrait (Bedrock), derived from the avatar +
+-- the user's goal. goal_signature is a hash of the goal inputs so it only
+-- regenerates when the goal actually changes.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_image_data BYTEA;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_image_mime TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_signature TEXT;
 
 -- Introducing email verification: add the flag to databases that predate it and,
 -- the first time it appears, drop every existing session so all current users
