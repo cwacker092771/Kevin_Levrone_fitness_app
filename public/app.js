@@ -89,6 +89,7 @@
   };
 
   let currentPlan = null;
+  let goalImageChecked = false;  // one background staleness check per session
 
   function fmt(n) { return n.toLocaleString("en-US"); }
 
@@ -428,6 +429,10 @@
       if (plan) {
         populateForm(plan.inputs);
         renderPlan(plan);
+        if (!goalImageChecked && plan.inputs) {
+          goalImageChecked = true;
+          refreshGoalImage(plan.inputs, true);
+        }
       } else {
         showNoPlan();
       }
@@ -1376,22 +1381,30 @@
 
   // Fired after the goal form is saved. Regenerates only when the goal changed
   // (the server decides). Best-effort - failures are silent.
-  async function refreshGoalImage(inputs) {
+  // quiet: a background staleness check on load - don't flash the spinner or
+  // disturb the already-shown image unless something actually regenerates.
+  async function refreshGoalImage(inputs, quiet) {
     if (!goalImageBox) return;
-    goalImageBox.hidden = false;
-    goalImageBox.classList.add("generating");
+    if (!quiet) {
+      goalImageBox.hidden = false;
+      goalImageBox.classList.add("generating");
+    }
     try {
       const r = await api("/api/goal-image", {
         method: "POST",
         body: { sex: inputs.sex, goal: inputs.goal, experience: inputs.experience, days: inputs.days }
       });
-      if (r && (r.status === "generated" || r.status === "current")) {
+      if (r && r.status === "generated") {
         goalImage.src = "/api/goal-image?t=" + Date.now();
-      } else {
+        goalImageBox.hidden = false;
+      } else if (r && r.status === "current") {
+        if (!goalImage.getAttribute("src")) goalImage.src = "/api/goal-image?t=" + Date.now();
+        goalImageBox.hidden = false;
+      } else if (!quiet) {
         goalImageBox.hidden = true;   // disabled / no_photo
       }
     } catch (e) {
-      goalImageBox.hidden = !goalImage.getAttribute("src");
+      if (!quiet) goalImageBox.hidden = !goalImage.getAttribute("src");
     } finally {
       goalImageBox.classList.remove("generating");
     }
@@ -1682,6 +1695,7 @@
     if (!authGate.hidden) return;
     appDataLoaded = false;
     currentUser = null;
+    goalImageChecked = false;
     authForm.reset();
     setAuthMode("login");
     authError.textContent = AUTH_MESSAGES.not_authenticated;
@@ -1770,6 +1784,7 @@
     }
     appDataLoaded = false;
     currentUser = null;
+    goalImageChecked = false;
     authForm.reset();
     setAuthMode("login");
     showAuthGate();
