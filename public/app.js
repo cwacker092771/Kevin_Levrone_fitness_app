@@ -1116,9 +1116,9 @@
   const goalCaption = document.getElementById("goalCaption");
 
   const GOAL_LABELS = {
-    cut: "Cut — lose fat",
-    bulk: "Lean bulk — build size",
-    recomp: "Recomp — fat loss & muscle",
+    cut: "Cut",
+    bulk: "Lean bulk",
+    recomp: "Recomp",
     maintain: "Maintain"
   };
   function setGoalCaption(goalKey) {

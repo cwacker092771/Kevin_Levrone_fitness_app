@@ -170,6 +170,7 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold);
+  white-space: nowrap;
 }
 .header-photo-sub {
   display: block;
