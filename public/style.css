@@ -50,6 +50,11 @@ body {
   padding: 36px 0;
 }
 
+/* Make room below the brand text for the centred Day One / Your Goal photos. */
+.site-header:has(.header-photo:not([hidden])) {
+  padding-bottom: 128px;
+}
+
 .site-header::before {
   content: "";
   position: absolute;
@@ -130,15 +135,16 @@ body {
   font-size: 0.85rem;
 }
 
-/* "Day One" photo + AI "Your Goal" portrait, a matching pair bottom-right of
-   the header. */
+/* "Day One" photo + AI "Your Goal" portrait, a matching pair centred at the
+   bottom of the header. */
 .header-photos {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 18px;
   pointer-events: none;
 }
 .header-photo {
@@ -165,7 +171,10 @@ body {
 }
 .header-photo.generating .header-photo-img { animation: goal-pulse 1.3s ease-in-out infinite; }
 @keyframes goal-pulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.3; } }
-@media (max-width: 760px) { .header-photos { display: none; } }
+@media (max-width: 760px) {
+  .header-photos { display: none; }
+  .site-header:has(.header-photo:not([hidden])) { padding-bottom: 36px; }
+}
 
 /* --- Auth gate --------------------------------------------------------- */
 .auth-gate {
