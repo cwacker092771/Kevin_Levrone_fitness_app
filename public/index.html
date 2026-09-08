@@ -31,12 +31,14 @@
           <div class="brand-title-row">
             <h1>THE LEVRONE PROTOCOL</h1>
             <div class="user-bar" id="userBar" hidden>
+              <img class="user-avatar" id="userAvatar" alt="" hidden>
               <span class="user-name" id="userName"></span>
               <button type="button" class="btn-secondary" id="logoutBtn">Log out</button>
               <button type="button" class="linklike" id="cancelServiceBtn" hidden>Cancel service</button>
             </div>
           </div>
           <p class="tagline">Body composition · Nutrition · Supplementation<br><nobr>Old-school bodybuilding principles based on Kevin Levrone's personal recommendations, turned into your daily TODO list.</nobr></p>
+          <img class="header-avatar" id="headerAvatar" alt="Your photo" hidden>
         </div>
       </div>
     </div>
@@ -78,6 +80,18 @@
         <label>Password
           <input type="password" name="password" autocomplete="current-password" required>
         </label>
+        <div class="auth-photo-field" id="authPhotoField" hidden>
+          <span class="auth-card-label">Photo <span class="auth-photo-optional">(optional)</span></span>
+          <div class="auth-photo-row">
+            <img class="auth-photo-preview" id="avatarPreview" alt="" hidden>
+            <label class="btn-secondary auth-photo-btn">
+              Choose photo
+              <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp" hidden>
+            </label>
+            <button type="button" class="linklike" id="avatarClearBtn" hidden>Remove</button>
+          </div>
+          <p class="auth-error" id="avatarError" hidden></p>
+        </div>
         <div class="auth-card-field" id="authCardField" hidden>
           <span class="auth-card-label">Card</span>
           <div id="cardElement"></div>

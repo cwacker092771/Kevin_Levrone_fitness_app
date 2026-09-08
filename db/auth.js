@@ -28,15 +28,20 @@ function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();
 }
 
-async function createUser(username, password, billing) {
+async function createUser(username, password, opts) {
   const name = normalizeUsername(username);
-  const b = billing || {};
+  const o = opts || {};
   try {
     const { rows } = await pool.query(
-      `INSERT INTO users (username, password_hash, stripe_customer_id, stripe_payment_method_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users
+         (username, password_hash, stripe_customer_id, stripe_payment_method_id, avatar_data, avatar_mime)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, username, email_verified`,
-      [name, hashPassword(password), b.stripeCustomerId || null, b.stripePaymentMethodId || null]
+      [
+        name, hashPassword(password),
+        o.stripeCustomerId || null, o.stripePaymentMethodId || null,
+        o.avatarData || null, o.avatarMime || null
+      ]
     );
     return rows[0];
   } catch (err) {
@@ -51,12 +56,18 @@ async function createUser(username, password, billing) {
 
 async function verifyUser(username, password) {
   const { rows } = await pool.query(
-    "SELECT id, username, password_hash, email_verified FROM users WHERE lower(username) = lower($1)",
+    `SELECT id, username, password_hash, email_verified, (avatar_mime IS NOT NULL) AS has_avatar
+       FROM users WHERE lower(username) = lower($1)`,
     [normalizeUsername(username)]
   );
   const user = rows[0];
   if (!user || !verifyPassword(password, user.password_hash)) return null;
-  return { id: user.id, username: user.username, emailVerified: user.email_verified };
+  return {
+    id: user.id,
+    username: user.username,
+    emailVerified: user.email_verified,
+    has_avatar: user.has_avatar
+  };
 }
 
 // Looks a user up by email/username without checking a password. Used by the
@@ -122,13 +133,22 @@ async function createSession(userId) {
 async function getSessionUser(token) {
   if (!token) return null;
   const { rows } = await pool.query(
-    `SELECT u.id, u.username
+    `SELECT u.id, u.username, (u.avatar_mime IS NOT NULL) AS has_avatar
        FROM sessions s
        JOIN users u ON u.id = s.user_id
       WHERE s.token = $1 AND s.expires_at > now() AND u.email_verified`,
     [token]
   );
   return rows[0] || null;
+}
+
+async function getAvatar(userId) {
+  const { rows } = await pool.query(
+    "SELECT avatar_data, avatar_mime FROM users WHERE id = $1",
+    [userId]
+  );
+  if (!rows[0] || !rows[0].avatar_data) return null;
+  return { data: rows[0].avatar_data, mime: rows[0].avatar_mime };
 }
 
 async function deleteSession(token) {
@@ -154,5 +174,6 @@ module.exports = {
   createEmailVerification,
   consumeEmailVerification,
   deleteExpiredEmailVerifications,
-  getStripeCustomerId
+  getStripeCustomerId,
+  getAvatar
 };

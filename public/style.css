@@ -111,9 +111,30 @@ body {
   letter-spacing: 0.02em;
 }
 
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--gold);
+  flex-shrink: 0;
+}
+
 .user-bar .btn-secondary {
   padding: 7px 14px;
   font-size: 0.85rem;
+}
+
+/* Profile photo at the bottom of the header. */
+.header-avatar {
+  margin-top: 12px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: block;
 }
 
 /* --- Auth gate --------------------------------------------------------- */
@@ -229,6 +250,33 @@ body {
   margin: 0;
   font-size: 0.78rem;
   color: var(--text-dim);
+}
+
+/* ---- Registration photo ---------------------------------------------- */
+.auth-photo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auth-photo-optional { text-transform: none; letter-spacing: 0; opacity: 0.7; }
+.auth-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.auth-photo-preview {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+}
+.auth-photo-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .auth-error {

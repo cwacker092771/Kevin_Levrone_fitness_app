@@ -1097,6 +1097,13 @@
   const authFlash = document.getElementById("authFlash");
   const authCardField = document.getElementById("authCardField");
   const cardError = document.getElementById("cardError");
+  const authPhotoField = document.getElementById("authPhotoField");
+  const avatarInput = document.getElementById("avatarInput");
+  const avatarPreview = document.getElementById("avatarPreview");
+  const avatarClearBtn = document.getElementById("avatarClearBtn");
+  const avatarError = document.getElementById("avatarError");
+  const userAvatar = document.getElementById("userAvatar");
+  const headerAvatar = document.getElementById("headerAvatar");
   const authSubmit = document.getElementById("authSubmit");
   const authSwitchText = document.getElementById("authSwitchText");
   const authSwitchBtn = document.getElementById("authSwitchBtn");
@@ -1244,6 +1251,73 @@
     return setupIntent && setupIntent.status === "succeeded" ? setupIntent.id : null;
   }
 
+  // -------------------------------------------------------------------------
+  // Registration photo -> avatar. Resized to a 256px square JPEG in the browser
+  // and sent as a data URI with the register request.
+  // -------------------------------------------------------------------------
+  let avatarDataUri = null;
+  const AVATAR_SIZE = 256;
+
+  function resizeToAvatar(file) {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith("image/")) { reject(new Error("Choose an image file.")); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = AVATAR_SIZE;
+        canvas.getContext("2d").drawImage(img, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That image couldn't be read.")); };
+      img.src = url;
+    });
+  }
+
+  function clearAvatarSelection() {
+    avatarDataUri = null;
+    avatarInput.value = "";
+    avatarPreview.hidden = true;
+    avatarPreview.removeAttribute("src");
+    avatarClearBtn.hidden = true;
+    avatarError.hidden = true;
+  }
+
+  if (avatarInput) {
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files[0];
+      if (!file) return;
+      avatarError.hidden = true;
+      try {
+        avatarDataUri = await resizeToAvatar(file);
+        avatarPreview.src = avatarDataUri;
+        avatarPreview.hidden = false;
+        avatarClearBtn.hidden = false;
+      } catch (err) {
+        clearAvatarSelection();
+        avatarError.textContent = err.message || "Couldn't use that image.";
+        avatarError.hidden = false;
+      }
+    });
+    avatarClearBtn.addEventListener("click", clearAvatarSelection);
+  }
+
+  // Points the header + user-bar avatars at the signed-in user's photo, or
+  // hides them when there's none.
+  function applyAvatar(user) {
+    const show = !!(user && user.hasAvatar);
+    const src = show ? "/api/avatar?t=" + Date.now() : "";
+    [userAvatar, headerAvatar].forEach((el) => {
+      if (!el) return;
+      if (show) { el.src = src; el.hidden = false; }
+      else { el.hidden = true; el.removeAttribute("src"); }
+    });
+  }
+
   function setAuthMode(mode) {
     authMode = mode;
     authError.hidden = true;
@@ -1263,6 +1337,7 @@
     authSwitchBtn.textContent = registering ? "Log in" : "Register";
     authForm.password.autocomplete = registering ? "new-password" : "current-password";
     authHint.hidden = !registering;
+    if (authPhotoField) authPhotoField.hidden = !registering;
     if (registering) initCardField();
     else if (authCardField) authCardField.hidden = true;
   }
@@ -1326,6 +1401,7 @@
     appMain.hidden = false;
     userBar.hidden = false;
     userName.textContent = user.username;
+    applyAvatar(user);
     applyServiceStatus(license);
     if (!appDataLoaded) {
       appDataLoaded = true;
@@ -1565,6 +1641,7 @@
     authSubmit.disabled = true;
     const endpoint = registering ? "/api/auth/register" : "/api/auth/login";
     const payload = { username, password };
+    if (registering && avatarDataUri) payload.avatar = avatarDataUri;
     try {
       if (registering && billingEnabled) {
         const setupIntentId = await confirmCard();
@@ -1589,6 +1666,7 @@
       if (data.status === "verification_sent") {
         authForm.reset();
         resetCardField();
+        clearAvatarSelection();
         showVerifyNotice(data.email, data.devLink);
         return;
       }

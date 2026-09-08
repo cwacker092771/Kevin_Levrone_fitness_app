@@ -14,6 +14,7 @@ const { BODY_METRIC_FIELDS } = require("./lib/bodyMetricFields");
 const { checkPasswordStrength } = require("./lib/passwordPolicy");
 const { sendVerificationEmail } = require("./lib/mailer");
 const billing = require("./lib/billing");
+const { parseAvatarDataUri } = require("./lib/avatar");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,7 +51,7 @@ function isValidDate(str) {
 // Auth
 // ---------------------------------------------------------------------------
 function publicUser(user) {
-  return { id: user.id, username: user.username };
+  return { id: user.id, username: user.username, hasAvatar: !!user.has_avatar };
 }
 
 // Public base URL for links in outbound email. Behind the production proxy
@@ -88,13 +89,20 @@ app.post("/api/auth/register", async (req, res) => {
   if (billing.registrationBlocked) {
     return res.status(503).json({ error: "registration_closed" });
   }
-  const { username, password, setupIntentId } = req.body || {};
+  const { username, password, setupIntentId, avatar } = req.body || {};
   if (typeof username !== "string" || !USERNAME_RE.test(username.trim())) {
     return res.status(400).json({ error: "invalid_username" });
   }
   const pwProblem = checkPasswordStrength(password, username.trim());
   if (pwProblem) {
     return res.status(400).json({ error: "weak_password", message: pwProblem });
+  }
+
+  // Optional profile photo. Absent is fine; present-but-bad is rejected.
+  let avatarImg = null;
+  if (avatar != null && avatar !== "") {
+    avatarImg = parseAvatarDataUri(avatar);
+    if (!avatarImg) return res.status(400).json({ error: "invalid_avatar" });
   }
 
   // Reject a taken email before touching Stripe, so we don't create a customer
@@ -121,7 +129,9 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     const user = await auth.createUser(username.trim(), password, {
       stripeCustomerId: card && card.customerId,
-      stripePaymentMethodId: card && card.paymentMethodId
+      stripePaymentMethodId: card && card.paymentMethodId,
+      avatarData: avatarImg && avatarImg.buffer,
+      avatarMime: avatarImg && avatarImg.mime
     });
     // No session yet — the account is inert until the email is verified.
     const { delivered, devLink } = await issueVerification(req, user);
@@ -236,6 +246,22 @@ app.get("/api/license/tiers", (req, res) => {
 
 // Everything below this line requires a valid session.
 app.use("/api", requireAuth);
+
+// The signed-in user's avatar photo (uploaded at registration). Bytes come
+// straight from the DB with a long private cache - the URL is per-session
+// cache-busted by the client.
+app.get("/api/avatar", async (req, res) => {
+  try {
+    const avatar = await auth.getAvatar(req.userId);
+    if (!avatar) return res.status(404).end();
+    res.set("Content-Type", avatar.mime);
+    res.set("Cache-Control", "private, max-age=86400");
+    res.send(avatar.data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
 
 // Any signed-in user can read or install their license. This sits above the
 // requireLicense gate so an unlicensed account can still pick a tier.

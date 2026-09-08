@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   email_verified BOOLEAN NOT NULL DEFAULT false,
   stripe_customer_id TEXT,
   stripe_payment_method_id TEXT,
+  avatar_data BYTEA,
+  avatar_mime TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -16,6 +18,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(usern
 -- Card-on-file at registration (Stripe): back-fill for older databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_payment_method_id TEXT;
+-- Optional avatar photo uploaded at registration, stored inline (small, resized
+-- client-side). back-fill for older databases.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_data BYTEA;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_mime TEXT;
 
 -- Introducing email verification: add the flag to databases that predate it and,
 -- the first time it appears, drop every existing session so all current users
