@@ -1113,6 +1113,20 @@
   const dayOneBox = document.getElementById("dayOneBox");
   const goalImageBox = document.getElementById("goalImageBox");
   const goalImage = document.getElementById("goalImage");
+  const goalCaption = document.getElementById("goalCaption");
+
+  const GOAL_LABELS = {
+    cut: "Cut — lose fat",
+    bulk: "Lean bulk — build size",
+    recomp: "Recomp — fat loss & muscle",
+    maintain: "Maintain"
+  };
+  function setGoalCaption(goalKey) {
+    if (!goalCaption) return;
+    const label = GOAL_LABELS[goalKey];
+    goalCaption.textContent = label || "";
+    goalCaption.hidden = !label;
+  }
   const photoZoom = document.getElementById("photoZoom");
   const photoZoomImg = document.getElementById("photoZoomImg");
   const photoZoomCap = document.getElementById("photoZoomCap");
@@ -1385,6 +1399,7 @@
   // disturb the already-shown image unless something actually regenerates.
   async function refreshGoalImage(inputs, quiet) {
     if (!goalImageBox) return;
+    setGoalCaption(inputs && inputs.goal);
     if (!quiet) {
       goalImageBox.hidden = false;
       goalImageBox.classList.add("generating");
