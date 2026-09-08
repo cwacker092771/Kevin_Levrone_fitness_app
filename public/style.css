@@ -105,6 +105,11 @@ body {
   margin-left: auto;
 }
 
+.user-bar #logoutBtn,
+.user-bar #cancelServiceBtn {
+  white-space: nowrap;
+}
+
 .user-bar .user-name {
   font-weight: 600;
   color: var(--gold);
