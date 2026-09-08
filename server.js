@@ -379,8 +379,8 @@ app.post("/api/goal-image", async (req, res) => {
     const avatar = await auth.getAvatar(req.userId);
     if (!avatar) return res.json({ status: "no_photo" });
 
-    const png = await goalImage.generateGoalImage(goal, avatar.data);
-    await auth.setGoalImage(req.userId, { data: png, mime: "image/png", signature });
+    const image = await goalImage.generateGoalImage(goal, avatar.data);
+    await auth.setGoalImage(req.userId, { data: image, mime: "image/jpeg", signature });
     res.json({ status: "generated" });
   } catch (err) {
     console.error("goal image generation failed:", err.message);
