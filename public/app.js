@@ -1108,6 +1108,9 @@
   const dayOneBox = document.getElementById("dayOneBox");
   const goalImageBox = document.getElementById("goalImageBox");
   const goalImage = document.getElementById("goalImage");
+  const photoZoom = document.getElementById("photoZoom");
+  const photoZoomImg = document.getElementById("photoZoomImg");
+  const photoZoomCap = document.getElementById("photoZoomCap");
   const authSubmit = document.getElementById("authSubmit");
   const authSwitchText = document.getElementById("authSwitchText");
   const authSwitchBtn = document.getElementById("authSwitchBtn");
@@ -1260,7 +1263,7 @@
   // and sent as a data URI with the register request.
   // -------------------------------------------------------------------------
   let avatarDataUri = null;
-  const AVATAR_SIZE = 256;
+  const AVATAR_SIZE = 512;   // stored size; the header shows a small thumb, hover enlarges
 
   function resizeToAvatar(file) {
     return new Promise((resolve, reject) => {
@@ -1336,6 +1339,39 @@
       goalImageBox.hidden = true;
       goalImage.removeAttribute("src");
     }
+  }
+
+  // Hover / focus a header photo -> a larger, full-resolution popup below it.
+  function positionPhotoZoom(fig) {
+    const r = fig.getBoundingClientRect();
+    const zw = photoZoom.offsetWidth || 340;
+    let left = r.left + r.width / 2 - zw / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - zw - 12));
+    photoZoom.style.left = left + "px";
+    photoZoom.style.top = Math.round(r.bottom + 10) + "px";
+  }
+  function showPhotoZoom(fig) {
+    const img = fig.querySelector(".header-photo-img");
+    if (!img || !img.getAttribute("src")) return;
+    if (photoZoomImg.src !== img.src) photoZoomImg.src = img.src;
+    photoZoomCap.textContent = fig.querySelector("figcaption").textContent;
+    positionPhotoZoom(fig);
+    photoZoom.classList.add("show");
+  }
+  function hidePhotoZoom() {
+    photoZoom.classList.remove("show");
+  }
+  if (photoZoom) {
+    document.querySelectorAll(".header-photo").forEach((fig) => {
+      const img = fig.querySelector(".header-photo-img");
+      if (img) img.tabIndex = 0;
+      fig.addEventListener("mouseenter", () => showPhotoZoom(fig));
+      fig.addEventListener("mouseleave", hidePhotoZoom);
+      fig.addEventListener("focusin", () => showPhotoZoom(fig));
+      fig.addEventListener("focusout", hidePhotoZoom);
+    });
+    window.addEventListener("scroll", hidePhotoZoom, { passive: true });
+    window.addEventListener("resize", hidePhotoZoom);
   }
 
   // Fired after the goal form is saved. Regenerates only when the goal changed

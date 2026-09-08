@@ -151,6 +151,8 @@ body {
   margin: 0;
   width: 76px;
   text-align: center;
+  pointer-events: auto;   /* the .header-photos wrapper is click-through; these aren't */
+  cursor: zoom-in;
 }
 .header-photo-img {
   width: 76px;
@@ -171,10 +173,45 @@ body {
 }
 .header-photo.generating .header-photo-img { animation: goal-pulse 1.3s ease-in-out infinite; }
 @keyframes goal-pulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.3; } }
+.header-photo:hover .header-photo-img,
+.header-photo:focus-within .header-photo-img { border-color: var(--gold-hi, #f0d071); }
 @media (max-width: 760px) {
   .header-photos { display: none; }
   .site-header:has(.header-photo:not([hidden])) { padding-bottom: 36px; }
 }
+
+/* Hi-res popup shown on hover/focus of a header photo (JS-positioned). */
+.photo-zoom {
+  position: fixed;
+  z-index: 300;
+  margin: 0;
+  width: 340px;
+  text-align: center;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+.photo-zoom.show { visibility: visible; opacity: 1; transform: translateY(0); }
+.photo-zoom img {
+  width: 340px;
+  height: 340px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 3px solid var(--gold);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.75);
+  background: var(--panel);
+  display: block;
+}
+.photo-zoom figcaption {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+@media (max-width: 760px) { .photo-zoom { display: none; } }
 
 /* --- Auth gate --------------------------------------------------------- */
 .auth-gate {
