@@ -112,9 +112,10 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: >
-      Enable the AI "goal physique" portrait (Amazon Bedrock). Costs per image
-      and needs Bedrock image-model access enabled in the console. The instance
-      role already grants bedrock:InvokeModel.
+      Enable the AI "goal physique" portrait (Amazon Bedrock + Rekognition
+      face-lock). Costs per image and needs Bedrock image-model access enabled
+      in the console. The instance role grants bedrock:InvokeModel and
+      rekognition:DetectFaces.
 
   BedrockRegion:
     Type: String
@@ -244,6 +245,13 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: bedrock:InvokeModel
+                Resource: "*"
+        - PolicyName: goal-image-rekognition
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: rekognition:DetectFaces
                 Resource: "*"
 
   InstanceProfile:

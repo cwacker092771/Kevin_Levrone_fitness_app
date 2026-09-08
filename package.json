@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1127.0",
+    "@aws-sdk/client-rekognition": "^3.1127.0",
     "@aws-sdk/client-ses": "^3.1124.0",
     "express": "^4.19.2",
     "pg": "^8.12.0",
