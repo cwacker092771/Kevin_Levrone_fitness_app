@@ -97,6 +97,7 @@ body {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  margin-left: auto;   /* keep the bar pinned to the right */
 }
 
 .user-bar .user-name {
