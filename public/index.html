@@ -28,14 +28,16 @@
           <path d="M32 66 A20 20 0 0 0 68 66" class="badge-star-arc"></path>
         </svg>
         <div class="brand-text">
-          <h1>THE LEVRONE PROTOCOL</h1>
+          <div class="brand-title-row">
+            <h1>THE LEVRONE PROTOCOL</h1>
+            <div class="user-bar" id="userBar" hidden>
+              <span class="user-name" id="userName"></span>
+              <button type="button" class="linklike" id="cancelServiceBtn" hidden>Cancel service</button>
+              <button type="button" class="btn-secondary" id="logoutBtn">Log out</button>
+            </div>
+          </div>
           <p class="tagline">Body composition · Nutrition · Supplementation<br><nobr>Old-school bodybuilding principles based on Kevin Levrone's personal recommendations, turned into your daily TODO list.</nobr></p>
         </div>
-      </div>
-      <div class="user-bar" id="userBar" hidden>
-        <span class="user-name" id="userName"></span>
-        <button type="button" class="linklike" id="cancelServiceBtn" hidden>Cancel service</button>
-        <button type="button" class="btn-secondary" id="logoutBtn">Log out</button>
       </div>
     </div>
   </header>
