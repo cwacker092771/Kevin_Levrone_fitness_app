@@ -55,11 +55,17 @@ CREATE TABLE IF NOT EXISTS licenses (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   tier TEXT NOT NULL,
   addon TEXT,
-  activated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  status TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'canceled'
+  activated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  canceled_at TIMESTAMPTZ
 );
 
 -- Back-fill for databases created before the coaching add-on existed.
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS addon TEXT;
+-- Back-fill for self-service cancellation. Canceling only flips status and
+-- stamps canceled_at; the user's data rows are left untouched.
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ;
 
 -- ---------------------------------------------------------------------------
 -- Per-user data tables

@@ -353,6 +353,14 @@
       handleLicenseRequired();
       throw new Error("license_required");
     }
+    if (res.status === 403) {
+      let body = {};
+      try { body = await res.clone().json(); } catch (e) { /* ignore */ }
+      if (body.error === "service_canceled") {
+        applyServiceStatus({ status: "canceled" });
+        throw new Error("service_canceled");
+      }
+    }
     if (!res.ok) {
       let message = `Request failed: ${res.status}`;
       try {
@@ -1102,6 +1110,14 @@
   const userBar = document.getElementById("userBar");
   const userName = document.getElementById("userName");
   const logoutBtn = document.getElementById("logoutBtn");
+  const cancelServiceBtn = document.getElementById("cancelServiceBtn");
+  const serviceWarning = document.getElementById("serviceWarning");
+  const cancelDialog = document.getElementById("cancelDialog");
+  const cancelForm = document.getElementById("cancelForm");
+  const cancelInput = document.getElementById("cancelInput");
+  const cancelConfirmBtn = document.getElementById("cancelConfirmBtn");
+  const cancelCloseBtn = document.getElementById("cancelCloseBtn");
+  const cancelError = document.getElementById("cancelError");
 
   const licenseGate = document.getElementById("licenseGate");
   const licenseSub = document.getElementById("licenseSub");
@@ -1303,13 +1319,14 @@
     authForm.username.focus();
   }
 
-  function showApp(user) {
+  function showApp(user, license) {
     currentUser = user;
     authGate.hidden = true;
     licenseGate.hidden = true;
     appMain.hidden = false;
     userBar.hidden = false;
     userName.textContent = user.username;
+    applyServiceStatus(license);
     if (!appDataLoaded) {
       appDataLoaded = true;
       loadInitialData();
@@ -1317,13 +1334,80 @@
   }
 
   // Routes to the app when the account is licensed, or to the plan picker when
-  // it isn't (a fresh registration, or a login on an unlicensed account).
+  // it isn't (a fresh registration, or a login on an unlicensed account). A
+  // canceled license still routes into the app - just read-only.
   function routeAfterAuth(user, license) {
     if (license && license.tier) {
-      showApp(user);
+      showApp(user, license);
     } else {
       showLicenseGate(user);
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Service cancellation / read-only mode
+  // -------------------------------------------------------------------------
+  let serviceCanceled = false;
+
+  // Puts the app in read-only mode: disables every input / action button under
+  // #appMain and blocks pointer events on its panels (belt-and-braces for any
+  // controls added later). The warning banner and user bar stay live. This is
+  // a one-way switch in the GUI, so there's nothing to undo.
+  function setAppReadOnly(on) {
+    if (!on) return;
+    appMain.classList.add("app-readonly");
+    appMain.querySelectorAll("input, select, textarea, button").forEach((el) => {
+      if (el.closest("#serviceWarning")) return;
+      el.disabled = true;
+    });
+  }
+
+  function applyServiceStatus(license) {
+    const canceled = !!license && license.status === "canceled";
+    serviceCanceled = canceled;
+    if (serviceWarning) serviceWarning.hidden = !canceled;
+    if (cancelServiceBtn) cancelServiceBtn.hidden = canceled;
+    setAppReadOnly(canceled);
+  }
+
+  if (cancelServiceBtn) {
+    cancelServiceBtn.addEventListener("click", () => {
+      cancelError.hidden = true;
+      cancelInput.value = "";
+      cancelConfirmBtn.disabled = true;
+      cancelDialog.hidden = false;
+      cancelInput.focus();
+    });
+    cancelCloseBtn.addEventListener("click", () => { cancelDialog.hidden = true; });
+    cancelInput.addEventListener("input", () => {
+      cancelConfirmBtn.disabled = cancelInput.value.trim().toLowerCase() !== "cancel";
+    });
+    cancelForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (cancelInput.value.trim().toLowerCase() !== "cancel") return;
+      cancelConfirmBtn.disabled = true;
+      cancelError.hidden = true;
+      try {
+        const data = await api("/api/license/cancel", {
+          method: "POST",
+          body: { confirm: cancelInput.value.trim() }
+        });
+        cancelDialog.hidden = true;
+        applyServiceStatus(data.license);
+        const n = data.subscriptionsCanceled || 0;
+        serviceWarning.querySelector(".service-warning-detail").textContent =
+          n > 0
+            ? `${n} recurring payment${n === 1 ? "" : "s"} stopped. Your logged data is kept and stays viewable.`
+            : "Your logged data is kept and stays viewable.";
+      } catch (err) {
+        cancelError.textContent =
+          err.message === "already_canceled"
+            ? "Your service is already canceled."
+            : "Could not cancel right now. Try again.";
+        cancelError.hidden = false;
+        cancelConfirmBtn.disabled = false;
+      }
+    });
   }
 
   const TIER_MESSAGE = "Your account isn't licensed yet. Pick a plan to unlock The Levrone Protocol.";

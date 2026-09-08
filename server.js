@@ -251,6 +251,10 @@ app.get("/api/license", async (req, res) => {
 app.post("/api/license", async (req, res) => {
   const { tier, addon } = req.body || {};
   try {
+    const existing = await licenses.getLicense(req.userId);
+    if (existing && existing.status === "canceled") {
+      return res.status(403).json({ error: "service_canceled" });
+    }
     const license = await licenses.setLicense(req.userId, tier, addon);
     res.json({ license });
   } catch (err) {
@@ -262,7 +266,8 @@ app.post("/api/license", async (req, res) => {
   }
 });
 
-// Everything below this line also requires an installed license.
+// Everything below this line also requires an installed license (active OR
+// canceled - a canceled account can still read its data).
 async function requireLicense(req, res, next) {
   try {
     const license = await licenses.getLicense(req.userId);
@@ -274,6 +279,43 @@ async function requireLicense(req, res, next) {
   }
 }
 app.use("/api", requireLicense);
+
+// Self-service cancellation. The user must type "cancel" in the GUI; the client
+// sends it as `confirm`. Data is left intact - only the license flag flips and
+// any Stripe subscriptions are canceled so no further payments are taken.
+app.post("/api/license/cancel", async (req, res) => {
+  const confirm = typeof req.body?.confirm === "string" ? req.body.confirm.trim().toLowerCase() : "";
+  if (confirm !== "cancel") {
+    return res.status(400).json({ error: "confirmation_required" });
+  }
+  try {
+    const license = await licenses.cancelLicense(req.userId);
+    if (!license) return res.status(409).json({ error: "already_canceled" });
+
+    let subscriptionsCanceled = 0;
+    try {
+      const customerId = await auth.getStripeCustomerId(req.userId);
+      ({ canceled: subscriptionsCanceled } = await billing.cancelSubscriptions(customerId));
+    } catch (err) {
+      // Don't leave the account half-canceled if Stripe hiccups - the flag is
+      // already set. Surface it in logs for manual follow-up.
+      console.error("subscription cancellation failed for user", req.userId, err.message);
+    }
+    res.json({ license, subscriptionsCanceled });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "server_error" });
+  }
+});
+
+// Once canceled, the account is read-only: reject every mutating request but
+// keep GETs working so the user can still view their history.
+app.use("/api", (req, res, next) => {
+  if (req.method !== "GET" && req.license && req.license.status === "canceled") {
+    return res.status(403).json({ error: "service_canceled" });
+  }
+  next();
+});
 
 // ---------------------------------------------------------------------------
 // Plans
@@ -483,7 +525,8 @@ function listen() {
       .listen(httpsPort, () => console.log(`Levrone Protocol (HTTPS) at https://localhost:${httpsPort}`));
     http
       .createServer((req, res) => {
-        res.writeHead(301, { Location: `https://localhost:${httpsPort}${req.url}` });
+        // 302, not 301 - a dev toggle shouldn't get cached permanently by the browser.
+        res.writeHead(302, { Location: `https://localhost:${httpsPort}${req.url}` });
         res.end();
       })
       .listen(PORT, () => console.log(`http://localhost:${PORT} -> redirects to https://localhost:${httpsPort}`));

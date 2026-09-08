@@ -101,6 +101,14 @@ async function deleteExpiredEmailVerifications() {
   await pool.query("DELETE FROM email_verifications WHERE expires_at <= now()");
 }
 
+async function getStripeCustomerId(userId) {
+  const { rows } = await pool.query(
+    "SELECT stripe_customer_id FROM users WHERE id = $1",
+    [userId]
+  );
+  return rows[0] ? rows[0].stripe_customer_id : null;
+}
+
 async function createSession(userId) {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
@@ -145,5 +153,6 @@ module.exports = {
   deleteExpiredSessions,
   createEmailVerification,
   consumeEmailVerification,
-  deleteExpiredEmailVerifications
+  deleteExpiredEmailVerifications,
+  getStripeCustomerId
 };

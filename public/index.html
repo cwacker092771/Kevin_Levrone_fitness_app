@@ -34,10 +34,34 @@
       </div>
       <div class="user-bar" id="userBar" hidden>
         <span class="user-name" id="userName"></span>
+        <button type="button" class="linklike" id="cancelServiceBtn" hidden>Cancel service</button>
         <button type="button" class="btn-secondary" id="logoutBtn">Log out</button>
       </div>
     </div>
   </header>
+
+  <div class="modal-gate" id="cancelDialog" hidden>
+    <div class="modal-card">
+      <h2>Cancel your service</h2>
+      <p>
+        This stops all future monthly payments and switches the app to
+        read-only. <strong>Your logged data is kept</strong> and stays viewable.
+        This can't be undone from here.
+      </p>
+      <form id="cancelForm">
+        <label>
+          <span>Type <strong>cancel</strong> to confirm</span>
+          <input type="text" id="cancelInput" autocomplete="off" autocapitalize="none"
+                 spellcheck="false" placeholder="cancel">
+        </label>
+        <p class="auth-error" id="cancelError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="cancelCloseBtn">Keep my service</button>
+          <button type="submit" class="btn-danger" id="cancelConfirmBtn" disabled>Cancel service</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div class="auth-gate" id="authGate" hidden>
     <div class="auth-card">
@@ -108,6 +132,12 @@
   </div>
 
   <main class="wrap" id="appMain" hidden>
+    <div class="service-warning" id="serviceWarning" role="alert" hidden>
+      <strong>⚠ Your service is canceled.</strong>
+      The app is read-only — you can view your history but not add or change anything.
+      <span class="service-warning-detail"></span>
+    </div>
+
     <section class="panel form-panel">
       <h2>1. Tell it about you</h2>
       <form id="planForm">
