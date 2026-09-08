@@ -253,16 +253,24 @@ app.get("/api/license/tiers", (req, res) => {
 // Everything below this line requires a valid session.
 app.use("/api", requireAuth);
 
-// The signed-in user's avatar photo (uploaded at registration). Bytes come
-// straight from the DB with a long private cache - the URL is per-session
-// cache-busted by the client.
+// The signed-in user's avatar photo (uploaded at registration), served through
+// the same canonical square crop the goal-image generator starts from, so the
+// "Day One" and "Your Goal" header photos line up as a before / after pair.
 app.get("/api/avatar", async (req, res) => {
   try {
     const avatar = await auth.getAvatar(req.userId);
     if (!avatar) return res.status(404).end();
-    res.set("Content-Type", avatar.mime);
+    let body = avatar.data;
+    let type = avatar.mime;
+    try {
+      body = await goalImage.normalizeBase(avatar.data);
+      type = "image/jpeg";
+    } catch (e) {
+      console.error("avatar normalize failed, serving raw:", e.message);
+    }
+    res.set("Content-Type", type);
     res.set("Cache-Control", "private, max-age=86400");
-    res.send(avatar.data);
+    res.send(body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "server_error" });
