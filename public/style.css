@@ -87,7 +87,6 @@ body {
 .brand-title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px 24px;
   flex-wrap: wrap;
 }
@@ -96,8 +95,14 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;   /* keep the bar pinned to the right */
+  flex: 1;            /* fill the row so the cancel link can be pushed to the edge */
+  min-width: 0;
+}
+
+/* email + Log out follow the title; the Cancel link is right-justified to the
+   header edge, set apart from them. */
+#cancelServiceBtn {
+  margin-left: auto;
 }
 
 .user-bar .user-name {
