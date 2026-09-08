@@ -1105,6 +1105,7 @@
   const avatarError = document.getElementById("avatarError");
   const userAvatar = document.getElementById("userAvatar");
   const headerAvatar = document.getElementById("headerAvatar");
+  const dayOneBox = document.getElementById("dayOneBox");
   const goalImageBox = document.getElementById("goalImageBox");
   const goalImage = document.getElementById("goalImage");
   const authSubmit = document.getElementById("authSubmit");
@@ -1309,16 +1310,20 @@
     avatarClearBtn.addEventListener("click", clearAvatarSelection);
   }
 
-  // Points the header + user-bar avatars at the signed-in user's photo, or
-  // hides them when there's none.
+  // Points the user-bar avatar and the "Day One" header photo at the signed-in
+  // user's uploaded photo, or hides them when there's none.
   function applyAvatar(user) {
     const show = !!(user && user.hasAvatar);
-    const src = show ? "/api/avatar?t=" + Date.now() : "";
-    [userAvatar, headerAvatar].forEach((el) => {
-      if (!el) return;
-      if (show) { el.src = src; el.hidden = false; }
-      else { el.hidden = true; el.removeAttribute("src"); }
-    });
+    if (show) {
+      const src = "/api/avatar?t=" + Date.now();
+      if (userAvatar) { userAvatar.src = src; userAvatar.hidden = false; }
+      if (headerAvatar) headerAvatar.src = src;
+      if (dayOneBox) dayOneBox.hidden = false;
+    } else {
+      if (userAvatar) { userAvatar.hidden = true; userAvatar.removeAttribute("src"); }
+      if (headerAvatar) headerAvatar.removeAttribute("src");
+      if (dayOneBox) dayOneBox.hidden = true;
+    }
   }
 
   // The AI "goal physique" portrait, shown bottom-right of the header.

@@ -130,29 +130,23 @@ body {
   font-size: 0.85rem;
 }
 
-/* Profile photo at the bottom of the header. */
-.header-avatar {
-  margin-top: 12px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid var(--gold);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  display: block;
-}
-
-/* AI-generated "goal physique" portrait, bottom-right of the header. */
-.header-goal-image {
+/* "Day One" photo + AI "Your Goal" portrait, a matching pair bottom-right of
+   the header. */
+.header-photos {
   position: absolute;
   right: 0;
   bottom: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  pointer-events: none;
+}
+.header-photo {
   margin: 0;
   width: 76px;
   text-align: center;
-  pointer-events: none;
 }
-.header-goal-image img {
+.header-photo-img {
   width: 76px;
   height: 76px;
   object-fit: cover;
@@ -162,16 +156,16 @@ body {
   background: rgba(0, 0, 0, 0.35);
   display: block;
 }
-.header-goal-image figcaption {
+.header-photo figcaption {
   margin-top: 3px;
   font-size: 0.6rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold);
 }
-.header-goal-image.generating img { animation: goal-pulse 1.3s ease-in-out infinite; }
+.header-photo.generating .header-photo-img { animation: goal-pulse 1.3s ease-in-out infinite; }
 @keyframes goal-pulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.3; } }
-@media (max-width: 700px) { .header-goal-image { display: none; } }
+@media (max-width: 760px) { .header-photos { display: none; } }
 
 /* --- Auth gate --------------------------------------------------------- */
 .auth-gate {
