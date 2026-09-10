@@ -433,7 +433,7 @@
     picked.forEach(({ label, product }) => {
       const a = document.createElement("a");
       a.href = suppCartUrl(product.id);
-      a.target = "_blank";
+      a.target = "levroneCart";   // reuse one tab so clicks stack in one cart
       a.rel = "noopener noreferrer";
       a.textContent = label;
       a.title = "Add " + product.name + " to your cart";
