@@ -344,6 +344,14 @@ body {
   gap: 8px;
 }
 .auth-photo-optional { text-transform: none; letter-spacing: 0; opacity: 0.7; }
+.auth-photo-help {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
 .auth-photo-row {
   display: flex;
   align-items: center;
