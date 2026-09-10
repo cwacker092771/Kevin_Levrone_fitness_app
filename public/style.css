@@ -240,7 +240,7 @@ body {
 
 .auth-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 570px;
   margin: auto;   /* centre when it fits, but let it grow past the viewport */
   background: var(--panel);
   border: 1px solid var(--border);
