@@ -801,6 +801,12 @@ legend {
   flex-direction: column;
   gap: 6px;
 }
+.buy-supps-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
 .buy-supps-title {
   font-size: 0.85rem;
   font-weight: 600;
