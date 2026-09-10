@@ -797,24 +797,39 @@ legend {
 
 .buy-supps {
   margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.buy-supps a {
-  display: inline-block;
+.buy-supps-title {
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--gold);
+}
+.buy-supps-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.buy-supps-links a {
+  font-size: 0.82rem;
+  color: var(--gold);
   text-decoration: none;
   border-bottom: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
   padding-bottom: 1px;
+  white-space: nowrap;
 }
-.buy-supps a:hover {
+.buy-supps-links a::after {
+  content: " \2197";   /* north-east arrow: opens externally */
+}
+.buy-supps-links a:hover {
   color: var(--gold-hi, #f0d071);
   border-bottom-color: currentColor;
 }
-.buy-supps a.disabled {
-  opacity: 0.45;
-  pointer-events: none;
+.buy-supps-note {
+  font-size: 0.72rem;
+  color: var(--text-dim);
 }
 
 .grid {

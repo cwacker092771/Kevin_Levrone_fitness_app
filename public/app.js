@@ -390,40 +390,56 @@
     };
   }
 
-  // Maps a "supp" checkbox value to its product handle on levrosupplements.com.
-  const SUPP_HANDLES = {
-    protein: "whey-casein-protein",
-    creatine: "creatine-monohydrate",
-    preworkout: "pre-workout",
-    fatburner: "fat-burner-thermogenic",
-    massgainer: "mass-gainer",
-    aminos: "bcaa-eaa",
-    multi: "multivitamin",
-    fishoil: "fish-oil-omega-3",
-    vitamind: "vitamin-d3",
-    joint: "joint-support",
-    zma: "zma-sleep-recovery"
+  // Maps a "supp" checkbox to a real product on the Kevin Levrone store
+  // (levrosupplements.com, PrestaShop). `id` is the PrestaShop product id; its
+  // add-to-cart URL takes one product per request and needs no token, and
+  // id_product_attribute=0 lets the shop pick the default flavour.
+  // `vitamind` is intentionally absent - the store has no standalone D3.
+  const SUPP_STORE = "https://levrosupplements.com/gb";
+  const SUPP_PRODUCTS = {
+    protein:    { id: 69,  name: "Gold Whey 2 kg" },
+    creatine:   { id: 54,  name: "GOLD Creatine 300 g" },
+    preworkout: { id: 63,  name: "Gold Maryland Muscle Machine 385 g" },
+    fatburner:  { id: 124, name: "GOLD L-Carnitine 1000" },
+    massgainer: { id: 30,  name: "Anabolic Mass 3 kg" },
+    aminos:     { id: 53,  name: "Gold BCAA 2:1:1 375 g" },
+    multi:      { id: 33,  name: "Anabolic Vita Formula 90 tablets" },
+    fishoil:    { id: 94,  name: "GOLD Omega 3-6-9" },
+    joint:      { id: 222, name: "Joint Support 495 g" },
+    zma:        { id: 122, name: "GOLD Pro ZMAX 90 tablets" }
   };
-  const buySuppsLink = document.getElementById("buySuppsLink");
+  const buySuppsBox = document.getElementById("buySuppsBox");
+  const buySuppsLinks = document.getElementById("buySuppsLinks");
 
-  // Point the link at a levrosupplements.com cart pre-loaded with whatever
-  // supplements are currently ticked (?add=handle1,handle2,...).
+  function suppCartUrl(id) {
+    return SUPP_STORE + "/cart?add=1&id_product=" + id +
+      "&id_product_attribute=0&qty=1";
+  }
+
+  // One add-to-cart link per ticked supplement that maps to a store product.
   function updateBuySuppsLink() {
-    if (!buySuppsLink) return;
-    const handles = [...form.querySelectorAll('input[name="supp"]:checked')]
-      .map((cb) => SUPP_HANDLES[cb.value])
-      .filter(Boolean);
-    if (handles.length === 0) {
-      buySuppsLink.href = "https://levrosupplements.com/";
-      buySuppsLink.classList.add("disabled");
-      buySuppsLink.setAttribute("aria-disabled", "true");
+    if (!buySuppsBox || !buySuppsLinks) return;
+    const picked = [...form.querySelectorAll('input[name="supp"]:checked')]
+      .map((cb) => ({
+        label: cb.parentElement.textContent.trim(),
+        product: SUPP_PRODUCTS[cb.value]
+      }))
+      .filter((p) => p.product);
+    buySuppsLinks.textContent = "";
+    if (picked.length === 0) {
+      buySuppsBox.hidden = true;
       return;
     }
-    buySuppsLink.classList.remove("disabled");
-    buySuppsLink.removeAttribute("aria-disabled");
-    buySuppsLink.href =
-      "https://levrosupplements.com/cart?add=" +
-      handles.map(encodeURIComponent).join(",");
+    picked.forEach(({ label, product }) => {
+      const a = document.createElement("a");
+      a.href = suppCartUrl(product.id);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = label;
+      a.title = "Add " + product.name + " to your cart";
+      buySuppsLinks.appendChild(a);
+    });
+    buySuppsBox.hidden = false;
   }
 
   function populateForm(inputs) {
