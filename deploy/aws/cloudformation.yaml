@@ -112,8 +112,15 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: >
-      Enable the "Your Goal" header portrait - a local photographic treatment
-      of the user's own Day One photo. No external services or extra cost.
+      Enable the "Target You" header portrait (AWS Rekognition + Bedrock Stable
+      Image Inpaint face-lock). Costs per image and needs Bedrock image-model
+      access enabled in the console. The instance role grants bedrock:InvokeModel
+      and rekognition:DetectFaces.
+
+  BedrockRegion:
+    Type: String
+    Default: us-west-2
+    Description: Region for the Bedrock image models (used only when GoalImage=true).
 
   Domain:
     Type: String
@@ -232,6 +239,20 @@ Resources:
               - Effect: Allow
                 Action: [ses:SendEmail, ses:SendRawEmail]
                 Resource: "*"
+        - PolicyName: goal-image-bedrock
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: "*"
+        - PolicyName: goal-image-rekognition
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: rekognition:DetectFaces
+                Resource: "*"
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -282,6 +303,7 @@ Resources:
           STRIPE_SECRET_KEY=${StripeSecretKey}
           STRIPE_PUBLISHABLE_KEY=${StripePublishableKey}
           GOAL_IMAGE=${GoalImage}
+          BEDROCK_REGION=${BedrockRegion}
           ENVEOF
           DOMAIN="${Domain}"
           SELF_TLS="${SelfSignedTls}"
