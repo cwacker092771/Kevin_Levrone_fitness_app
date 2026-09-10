@@ -785,6 +785,28 @@ legend {
   font-size: 0.85rem;
 }
 
+.buy-supps {
+  margin: 14px 0 0;
+}
+.buy-supps a {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  padding-bottom: 1px;
+}
+.buy-supps a:hover {
+  color: var(--gold-hi, #f0d071);
+  border-bottom-color: currentColor;
+}
+.buy-supps a.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

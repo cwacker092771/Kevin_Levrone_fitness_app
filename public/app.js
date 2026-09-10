@@ -390,6 +390,42 @@
     };
   }
 
+  // Maps a "supp" checkbox value to its product handle on levrosupplements.com.
+  const SUPP_HANDLES = {
+    protein: "whey-casein-protein",
+    creatine: "creatine-monohydrate",
+    preworkout: "pre-workout",
+    fatburner: "fat-burner-thermogenic",
+    massgainer: "mass-gainer",
+    aminos: "bcaa-eaa",
+    multi: "multivitamin",
+    fishoil: "fish-oil-omega-3",
+    vitamind: "vitamin-d3",
+    joint: "joint-support",
+    zma: "zma-sleep-recovery"
+  };
+  const buySuppsLink = document.getElementById("buySuppsLink");
+
+  // Point the link at a levrosupplements.com cart pre-loaded with whatever
+  // supplements are currently ticked (?add=handle1,handle2,...).
+  function updateBuySuppsLink() {
+    if (!buySuppsLink) return;
+    const handles = [...form.querySelectorAll('input[name="supp"]:checked')]
+      .map((cb) => SUPP_HANDLES[cb.value])
+      .filter(Boolean);
+    if (handles.length === 0) {
+      buySuppsLink.href = "https://levrosupplements.com/";
+      buySuppsLink.classList.add("disabled");
+      buySuppsLink.setAttribute("aria-disabled", "true");
+      return;
+    }
+    buySuppsLink.classList.remove("disabled");
+    buySuppsLink.removeAttribute("aria-disabled");
+    buySuppsLink.href =
+      "https://levrosupplements.com/cart?add=" +
+      handles.map(encodeURIComponent).join(",");
+  }
+
   function populateForm(inputs) {
     form.sex.value = inputs.sex;
     form.age.value = inputs.age;
@@ -405,6 +441,7 @@
     [...form.querySelectorAll('input[name="supp"]')].forEach((cb) => {
       cb.checked = inputs.supplements.includes(cb.value);
     });
+    updateBuySuppsLink();
   }
 
   function renderPlan(plan) {
@@ -540,6 +577,11 @@
       showFormError("Could not save this plan — check that the server and database are running.");
     }
   });
+
+  form.querySelectorAll('input[name="supp"]').forEach((cb) => {
+    cb.addEventListener("change", updateBuySuppsLink);
+  });
+  updateBuySuppsLink();
 
   resetBtn.addEventListener("click", async () => {
     if (!currentPlan) return;
