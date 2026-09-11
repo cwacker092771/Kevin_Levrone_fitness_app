@@ -859,6 +859,7 @@ legend {
 }
 .radio-inline {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 5px;
   font-size: 0.82rem;
