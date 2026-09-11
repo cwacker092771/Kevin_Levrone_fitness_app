@@ -854,7 +854,7 @@ legend {
 }
 .auto-renew-control {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   flex: 1 1 320px;
   min-width: 280px;
@@ -863,11 +863,13 @@ legend {
 .auto-renew-options {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  justify-self: center;
   gap: 4px 16px;
 }
 .auto-renew-confirm {
-  /* Fills the space from the end of the radio options to the right edge of
-     the group box, and centers the button within that leftover space. */
+  /* Each column is half the row's remaining width, so the radio group
+     centers in the left half and Confirm centers in the right half. */
   display: flex;
   justify-content: center;
 }
