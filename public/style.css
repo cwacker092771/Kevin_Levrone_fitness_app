@@ -866,6 +866,7 @@ legend {
 .auto-renew-options {
   grid-column: 2;
   align-self: center;
+  vertical-align: middle;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
