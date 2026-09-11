@@ -853,22 +853,21 @@ legend {
   gap: 6px 14px;
 }
 .auto-renew-control {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content 1fr;
   align-items: center;
   flex: 1 1 320px;
   min-width: 280px;
   gap: 12px;
 }
 .auto-renew-options {
-  flex: 0 0 80%;
-  max-width: 80%;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
 }
 .auto-renew-confirm {
-  flex: 0 0 20%;
-  max-width: 20%;
+  /* Fills the space from the end of the radio options to the right edge of
+     the group box, and centers the button within that leftover space. */
   display: flex;
   justify-content: center;
 }
