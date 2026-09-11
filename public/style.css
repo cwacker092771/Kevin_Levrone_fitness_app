@@ -849,7 +849,7 @@ legend {
   margin: 14px 0 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 6px 14px;
 }
 .auto-renew-control {
