@@ -854,22 +854,26 @@ legend {
 }
 .auto-renew-control {
   /* Equal spacer columns on either side of the (single-line) radio group
-     centre it horizontally; Confirm centres in the right-hand spacer. */
+     centre it horizontally; Confirm centres in the right-hand spacer.
+     align-items: end bottom-justifies both against the row. */
   display: grid;
   grid-template-columns: 1fr max-content 1fr;
-  align-items: center;
+  align-items: end;
   flex: 1 1 460px;
   min-width: 420px;
   gap: 12px;
 }
 .auto-renew-options {
   grid-column: 2;
+  align-self: end;
   display: flex;
   flex-wrap: nowrap;
+  align-items: flex-end;
   gap: 4px 16px;
 }
 .auto-renew-confirm {
   grid-column: 3;
+  align-self: end;
   display: flex;
   justify-content: center;
 }
