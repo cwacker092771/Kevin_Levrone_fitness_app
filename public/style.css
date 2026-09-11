@@ -869,7 +869,7 @@ legend {
   vertical-align: middle;
   display: flex;
   flex-wrap: nowrap;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   gap: 4px 16px;
 }
