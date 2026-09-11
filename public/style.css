@@ -890,6 +890,7 @@ legend {
 .radio-inline input {
   width: auto;
   accent-color: var(--red);
+  vertical-align: middle;
 }
 .btn-small {
   padding: 6px 16px;
