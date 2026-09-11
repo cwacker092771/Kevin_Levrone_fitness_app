@@ -386,7 +386,8 @@
       experience: fd.get("experience"),
       days: fd.get("days"),
       supplements: fd.getAll("supp"),
-      stimulantsOk: fd.get("stimulantsOk") === "on"
+      stimulantsOk: fd.get("stimulantsOk") === "on",
+      autoRenew: fd.get("autoRenew") || "never"
     };
   }
 
@@ -456,6 +457,10 @@
     form.stimulantsOk.checked = !!inputs.stimulantsOk;
     [...form.querySelectorAll('input[name="supp"]')].forEach((cb) => {
       cb.checked = inputs.supplements.includes(cb.value);
+    });
+    const renewValue = inputs.autoRenew || "never";
+    [...form.querySelectorAll('input[name="autoRenew"]')].forEach((rb) => {
+      rb.checked = rb.value === renewValue;
     });
     updateBuySuppsLink();
   }

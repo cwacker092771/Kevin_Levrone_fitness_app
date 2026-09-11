@@ -838,6 +838,32 @@ legend {
   color: var(--text-dim);
 }
 
+.auto-renew-row {
+  margin: 14px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+.auto-renew-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.radio-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.radio-inline input {
+  width: auto;
+  accent-color: var(--red);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
