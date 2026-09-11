@@ -801,6 +801,13 @@ legend {
   flex-direction: column;
   gap: 6px;
 }
+.buy-supps-section-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
 .buy-supps-row {
   display: flex;
   flex-wrap: wrap;
