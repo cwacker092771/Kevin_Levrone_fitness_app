@@ -852,10 +852,25 @@ legend {
   align-items: baseline;
   gap: 6px 14px;
 }
+.auto-renew-control {
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+  min-width: 280px;
+  gap: 12px;
+}
 .auto-renew-options {
+  flex: 0 0 80%;
+  max-width: 80%;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
+}
+.auto-renew-confirm {
+  flex: 0 0 20%;
+  max-width: 20%;
+  display: flex;
+  justify-content: center;
 }
 .radio-inline {
   display: inline-flex;
@@ -870,6 +885,10 @@ legend {
 .radio-inline input {
   width: auto;
   accent-color: var(--red);
+}
+.btn-small {
+  padding: 6px 16px;
+  font-size: 0.78rem;
 }
 
 .grid {

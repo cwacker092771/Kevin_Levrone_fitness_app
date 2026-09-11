@@ -270,14 +270,19 @@
           </div>
           <div class="auto-renew-row">
             <span class="buy-supps-title">Auto-Renew: Frequency </span>
-            <span class="auto-renew-options">
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="never"> Never</label>
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="once"> Once</label>
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="month" checked> Monthly</label>
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="3months"> 3 Months</label>
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="6months"> 6 Months</label>
-              <label class="radio-inline"><input type="radio" name="autoRenew" value="1year"> Yearly</label>
-            </span>
+            <div class="auto-renew-control">
+              <span class="auto-renew-options">
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="never"> Never</label>
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="once"> Once</label>
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="month" checked> Monthly</label>
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="3months"> 3 Months</label>
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="6months"> 6 Months</label>
+                <label class="radio-inline"><input type="radio" name="autoRenew" value="1year"> Yearly</label>
+              </span>
+              <span class="auto-renew-confirm">
+                <button type="button" class="btn-secondary btn-small" id="autoRenewConfirmBtn">Confirm</button>
+              </span>
+            </div>
           </div>
         </fieldset>
 

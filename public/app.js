@@ -604,6 +604,21 @@
   });
   updateBuySuppsLink();
 
+  // Confirming the frequency has no server round-trip of its own - the value
+  // is already captured by readFormData() and saved with the plan on submit.
+  // This just gives the user a moment of visible acknowledgement.
+  const autoRenewConfirmBtn = document.getElementById("autoRenewConfirmBtn");
+  if (autoRenewConfirmBtn) {
+    autoRenewConfirmBtn.addEventListener("click", () => {
+      autoRenewConfirmBtn.textContent = "Confirmed ✓";
+      autoRenewConfirmBtn.disabled = true;
+      setTimeout(() => {
+        autoRenewConfirmBtn.textContent = "Confirm";
+        autoRenewConfirmBtn.disabled = false;
+      }, 1500);
+    });
+  }
+
   resetBtn.addEventListener("click", async () => {
     if (!currentPlan) return;
     try {
