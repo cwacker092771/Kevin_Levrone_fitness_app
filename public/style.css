@@ -853,23 +853,23 @@ legend {
   gap: 6px 14px;
 }
 .auto-renew-control {
+  /* Equal spacer columns on either side of the (single-line) radio group
+     centre it horizontally; Confirm centres in the right-hand spacer. */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr max-content 1fr;
   align-items: center;
-  flex: 1 1 320px;
-  min-width: 280px;
+  flex: 1 1 460px;
+  min-width: 420px;
   gap: 12px;
 }
 .auto-renew-options {
+  grid-column: 2;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  justify-self: center;
+  flex-wrap: nowrap;
   gap: 4px 16px;
 }
 .auto-renew-confirm {
-  /* Each column is half the row's remaining width, so the radio group
-     centers in the left half and Confirm centers in the right half. */
+  grid-column: 3;
   display: flex;
   justify-content: center;
 }
