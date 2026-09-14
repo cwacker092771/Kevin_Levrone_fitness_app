@@ -615,9 +615,31 @@ function listen() {
   if (httpsPort) {
     console.warn(`HTTPS_PORT set but ./certs is missing - run 'npm run gen-cert'. Serving plain HTTP.`);
   }
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Levrone Protocol server running at http://localhost:${PORT}`);
   });
+  attachShutdown(server);
+}
+
+// On redeploy/restart, a process manager sends SIGTERM before SIGKILL. Close
+// the HTTP server first (stop taking new requests) then the DB pool, so
+// database connections are released instead of dropped - left-open
+// connections on the server side can otherwise pile up across repeated
+// restarts and exhaust the database's max_connections.
+function attachShutdown(server) {
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} received, shutting down...`);
+    server.close(() => {
+      pool.end().finally(() => process.exit(0));
+    });
+    // Don't hang forever waiting on in-flight requests.
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 async function start() {
