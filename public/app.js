@@ -391,40 +391,45 @@
     };
   }
 
-  // Maps a "supp" checkbox to a real product on the Kevin Levrone store
-  // (levrosupplements.com, PrestaShop). `id` is the PrestaShop product id; its
-  // add-to-cart URL takes one product per request and needs no token, and
-  // id_product_attribute=0 lets the shop pick the default flavour.
-  // `vitamind` is intentionally absent - the store has no standalone D3.
-  const SUPP_STORE = "https://levrosupplements.com/gb";
+  // Maps a "supp" checkbox to a real product on Kevin Levrone's UNKROWNED KING
+  // store (unkrownedking.com, WooCommerce). The store runs in catalog mode -
+  // no prices or cart - so each link opens the product page; `slug` is its
+  // /product/<slug>/ path. `stimFree` is used when stimulants are unticked.
+  // `vitamind` and `joint` are intentionally absent - the store has neither.
+  const SUPP_STORE = "https://unkrownedking.com";
   const SUPP_PRODUCTS = {
-    protein:    { id: 69,  name: "Gold Whey 2 kg" },
-    creatine:   { id: 54,  name: "GOLD Creatine 300 g" },
-    preworkout: { id: 63,  name: "Gold Maryland Muscle Machine 385 g" },
-    fatburner:  { id: 124, name: "GOLD L-Carnitine 1000" },
-    massgainer: { id: 30,  name: "Anabolic Mass 3 kg" },
-    aminos:     { id: 53,  name: "Gold BCAA 2:1:1 375 g" },
-    multi:      { id: 33,  name: "Anabolic Vita Formula 90 tablets" },
-    fishoil:    { id: 94,  name: "GOLD Omega 3-6-9" },
-    joint:      { id: 222, name: "Joint Support 495 g" },
-    zma:        { id: 122, name: "GOLD Pro ZMAX 90 tablets" }
+    protein:    { slug: "whey-vanilla-2kg",          name: "WHEY+ Vanilla 2 kg" },
+    creatine:   { slug: "crea-unflavoured-500g",     name: "CREA+ Unflavoured 500 g" },
+    preworkout: { slug: "pump-fruit-punch",          name: "PUMP Fruit Punch",
+                  stimFree: { slug: "full-rep-stim-free-cherry-cola",
+                              name: "FULL REP STIM FREE Cherry Cola" } },
+    fatburner:  { slug: "alpha-burn",                name: "ALPHA BURN",
+                  stimFree: { slug: "l-carnitine", name: "L-Carnitine" } },
+    massgainer: { slug: "mass-bolic-vanilla-3-kg",   name: "MASS BOLIC Vanilla 3 kg" },
+    aminos:     { slug: "eaa-muscle-glue-raspberry", name: "EAA MUSCLE GLUE Raspberry" },
+    multi:      { slug: "multi-vitamin",             name: "Multivitamin" },
+    fishoil:    { slug: "omega-3",                   name: "OMEGA 3" },
+    zma:        { slug: "mag-b6",                    name: "MAG + B6" }
   };
   const buySuppsBox = document.getElementById("buySuppsBox");
   const buySuppsLinks = document.getElementById("buySuppsLinks");
 
-  function suppCartUrl(id) {
-    return SUPP_STORE + "/cart?add=1&id_product=" + id +
-      "&id_product_attribute=0&qty=1";
+  function suppProductUrl(slug) {
+    return SUPP_STORE + "/product/" + slug + "/";
   }
 
-  // One add-to-cart link per ticked supplement that maps to a store product.
+  // One product-page link per ticked supplement that maps to a store product.
   function updateBuySuppsLink() {
     if (!buySuppsBox || !buySuppsLinks) return;
+    const stimsOk = form.stimulantsOk.checked;
     const picked = [...form.querySelectorAll('input[name="supp"]:checked')]
-      .map((cb) => ({
-        label: cb.parentElement.textContent.trim(),
-        product: SUPP_PRODUCTS[cb.value]
-      }))
+      .map((cb) => {
+        const product = SUPP_PRODUCTS[cb.value];
+        return {
+          label: cb.parentElement.textContent.trim(),
+          product: product && !stimsOk && product.stimFree ? product.stimFree : product
+        };
+      })
       .filter((p) => p.product);
     buySuppsLinks.textContent = "";
     if (picked.length === 0) {
@@ -433,11 +438,11 @@
     }
     picked.forEach(({ label, product }) => {
       const a = document.createElement("a");
-      a.href = suppCartUrl(product.id);
-      a.target = "levroneCart";   // reuse one tab so clicks stack in one cart
+      a.href = suppProductUrl(product.slug);
+      a.target = "levroneStore";  // reuse one tab for every product page
       a.rel = "noopener noreferrer";
       a.textContent = label;
-      a.title = "Add " + product.name + " to your cart";
+      a.title = "View " + product.name + " on UNKROWNED KING";
       buySuppsLinks.appendChild(a);
     });
     buySuppsBox.hidden = false;
@@ -602,6 +607,7 @@
   form.querySelectorAll('input[name="supp"]').forEach((cb) => {
     cb.addEventListener("change", updateBuySuppsLink);
   });
+  form.stimulantsOk.addEventListener("change", updateBuySuppsLink);
   updateBuySuppsLink();
 
   // Confirming the frequency has no server round-trip of its own - the value
